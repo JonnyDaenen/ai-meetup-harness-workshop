@@ -1,0 +1,14 @@
+// Optional sandbox: run the agent in a container so its bash tool can't touch your laptop.
+// The model server (and the proxy) keep running on the host.
+{
+	"name": "harness-workshop",
+	"image": "mcr.microsoft.com/devcontainers/python:3-3.13-bookworm",
+
+	// host.docker.internal resolves to the host machine. This points at the proxy on :8080;
+	// use :1234 to talk to LM Studio directly.
+	"remoteEnv": {
+		"ANTHROPIC_BASE_URL": "http://host.docker.internal:8080"
+	},
+
+	"postCreateCommand": "curl -LsSf https://astral.sh/uv/install.sh | sh && ~/.local/bin/uv sync --project agent"
+}

@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.py[oc]
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Secrets
+.env
+
+# J5 call logs
+.j5/
+
+# mitmproxy saved flows
+*.mitm
+flows/

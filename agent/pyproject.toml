@@ -1,0 +1,9 @@
+[project]
+name = "j5-agent"
+version = "0.1.0"
+description = "J5: a minimal coding agent, built up step by step"
+requires-python = ">=3.12"
+dependencies = [
+    "anthropic>=0.84.0",
+    "python-dotenv>=1.2.2",
+]

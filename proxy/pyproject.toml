@@ -1,0 +1,8 @@
+[project]
+name = "harness-proxy"
+version = "0.1.0"
+description = "mitmproxy setup to inspect what an agent sends to the model server"
+requires-python = ">=3.12"
+dependencies = [
+    "mitmproxy>=12.2.1",
+]
