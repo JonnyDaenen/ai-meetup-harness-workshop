@@ -7,17 +7,29 @@ Hands-on workshop. In about an hour you will:
 
 > An agent is a model plus a harness. The model decides; the harness runs the loop, executes the tools and decides what goes into the context. Once you've seen the traffic, there's no magic left.
 
-## The whole idea in one picture
+## The whole idea in two pictures
 
+**Where the traffic goes.** The proxy sits on the wire, so you can read every call:
+
+```mermaid
+flowchart LR
+    you(["You"]) --> agent["Agent (harness)"]
+    agent -- "HTTP /v1/messages" --> proxy["Proxy :8080<br/>mitmweb UI :8081"]
+    proxy --> model[("Model server<br/>LM Studio :1234<br/>or api.anthropic.com")]
+    agent -- "tool_use" --> tools["Run tool<br/>bash, read_file, ..."]
+    tools -- "tool_result" --> agent
 ```
- you ──▶ agent (harness) ──HTTP──▶ proxy :8080 ──▶ model server
-          │   ▲                     (mitmweb UI :8081)   (LM Studio :1234 or api.anthropic.com)
-          │   └─ tool_result ◀─┐
-          └─ tool_use ──▶ run tool (bash, read_file, ...)
 
- loop: send messages ▶ model answers ▶ stop_reason == "tool_use"?
-         yes: run the tools, append the results, send again
-         no:  print the answer, wait for the user
+**What the harness does on every turn:**
+
+```mermaid
+flowchart TD
+    user(["User message"]) --> send["Send the whole history<br/>+ system prompt + tools"]
+    send --> answer["Model answers"]
+    answer --> check{"stop_reason ==<br/>tool_use?"}
+    check -- yes --> run["Run the tools,<br/>append the tool_results"]
+    run --> send
+    check -- no --> done(["Print the answer,<br/>wait for the user"])
 ```
 
 ## What's in this repo
