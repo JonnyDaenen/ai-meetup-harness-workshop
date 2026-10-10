@@ -9,7 +9,7 @@ Once J5 makes sense, look at a production harness. Claude Code reads `ANTHROPIC_
 cd proxy
 uv run mitmweb --mode reverse:https://api.anthropic.com -p 8080 \
   --set store_streamed_bodies=true --set stream_large_bodies=0 --set http2=false \
-  -s sse_clean.py
+  -s viewer.py -s sse_clean.py
 
 # terminal 2, in a throwaway folder
 ANTHROPIC_BASE_URL=http://127.0.0.1:8080 DISABLE_TELEMETRY=1 DISABLE_ERROR_REPORTING=1 claude
@@ -23,7 +23,7 @@ The stream flags are required here. Claude Code streams its responses, and witho
 # terminal 1: proxy in front of LM Studio
 uv run mitmweb --mode reverse:http://127.0.0.1:1234 -p 8080 \
   --set store_streamed_bodies=true --set stream_large_bodies=0 --set http2=false \
-  -s sse_clean.py
+  -s viewer.py -s sse_clean.py
 
 # terminal 2
 ANTHROPIC_BASE_URL=http://127.0.0.1:8080 ANTHROPIC_API_KEY=local \

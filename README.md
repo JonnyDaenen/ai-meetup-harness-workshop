@@ -14,7 +14,7 @@ Hands-on workshop. In about an hour you will:
 ```mermaid
 flowchart LR
     you(["You"]) --> agent["Agent (harness)"]
-    agent -- "HTTP /v1/messages" --> proxy["Proxy :8080<br/>mitmweb UI :8081"]
+    agent -- "HTTP /v1/messages" --> proxy["Proxy :8080<br/>call viewer :8082"]
     proxy --> model[("Model server<br/>LM Studio :1234<br/>or api.anthropic.com")]
     agent -- "tool_use" --> tools["Run tool<br/>bash, read_file, ..."]
     tools -- "tool_result" --> agent
@@ -36,7 +36,7 @@ flowchart TD
 
 | Folder | What | Own environment |
 |---|---|---|
-| [`proxy/`](proxy/) | mitmproxy in reverse mode, plus `sse_clean.py`, which makes streamed responses readable. Also scrubbed sample captures of Claude Code. | `proxy/pyproject.toml` (mitmproxy) |
+| [`proxy/`](proxy/) | mitmproxy in reverse mode, plus a live call viewer (`viewer.py`) and `sse_clean.py`, which makes streamed responses readable. Also scrubbed sample captures of Claude Code. | `proxy/pyproject.toml` (mitmproxy) |
 | [`agent/`](agent/) | **J5**, a minimal coding agent in three steps: chat only → bash tool → file tools | `agent/pyproject.toml` (anthropic, python-dotenv) |
 | [`docs/`](docs/) | Model setup: [local](docs/local-model.md), [remote](docs/remote-model.md), [Claude Code through the proxy](docs/claude-code.md) | |
 | [`exercises/`](exercises/) | Step-by-step exercises 00–06 | uses the agent's environment |
@@ -74,10 +74,10 @@ lms load qwen/qwen3.5-9b
 cd proxy
 uv run mitmweb --mode reverse:http://127.0.0.1:1234 -p 8080 \
   --set store_streamed_bodies=true --set stream_large_bodies=0 --set http2=false \
-  -s sse_clean.py
+  -s viewer.py -s sse_clean.py
 ```
 
-The proxy UI opens at <http://127.0.0.1:8081>. For a remote model, use `--mode reverse:https://api.anthropic.com` instead.
+Open the call viewer at <http://127.0.0.1:8082> to watch every model call live (the full mitmweb UI is at <http://127.0.0.1:8081>). For a remote model, use `--mode reverse:https://api.anthropic.com` instead.
 
 **Terminal 3: the agent.**
 

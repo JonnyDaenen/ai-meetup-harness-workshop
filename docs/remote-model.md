@@ -16,7 +16,7 @@ Faster and much better at tool calling than a laptop-sized model. It costs a lit
    cd proxy
    uv run mitmweb --mode reverse:https://api.anthropic.com -p 8080 \
      --set store_streamed_bodies=true --set stream_large_bodies=0 --set http2=false \
-     -s sse_clean.py
+     -s viewer.py -s sse_clean.py
    ```
 
 To skip the proxy, comment out `ANTHROPIC_BASE_URL`. The SDK then talks to `https://api.anthropic.com` directly.

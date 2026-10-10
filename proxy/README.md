@@ -12,18 +12,19 @@ cd proxy
 # local model (LM Studio)
 uv run mitmweb --mode reverse:http://127.0.0.1:1234 -p 8080 \
   --set store_streamed_bodies=true --set stream_large_bodies=0 --set http2=false \
-  -s sse_clean.py
+  -s viewer.py -s sse_clean.py
 
 # remote model (Anthropic); swap in another provider's base URL if you use one
 uv run mitmweb --mode reverse:https://api.anthropic.com -p 8080 \
   --set store_streamed_bodies=true --set stream_large_bodies=0 --set http2=false \
-  -s sse_clean.py
+  -s viewer.py -s sse_clean.py
 ```
 
 Then:
 
 - Point the agent at the proxy: `ANTHROPIC_BASE_URL=http://127.0.0.1:8080` (the default in `.env.example`).
-- Open the UI at <http://127.0.0.1:8081>.
+- Open the **call viewer** at <http://127.0.0.1:8082>: every model call as readable blocks, live.
+- The full mitmweb UI is still at <http://127.0.0.1:8081>, for headers and everything else.
 
 Prefer the terminal? Use `mitmdump` with the same flags, and add `--flow-detail 3` to print bodies.
 
@@ -34,9 +35,25 @@ Prefer the terminal? Use `mitmdump` with the same flags, and add `--flow-detail 
 | `stream_large_bodies=0` | Forward every response to the client as it arrives. Streaming clients like Claude Code need this. |
 | `store_streamed_bodies=true` | Still keep a copy of each streamed body, so the UI can show it. |
 | `http2=false` | Keeps every call as a plain HTTP/1.1 request, which is simpler to read. |
+| `-s viewer.py` | Serves the live call viewer on :8082 (see below). Load it **before** `sse_clean.py`, so it sees the original stream. |
 | `-s sse_clean.py` | Rewrites the **stored copy** of an SSE response into `{"assistant_text": ..., "tool_calls": [...]}`. |
 
 The first two matter. Without them, `sse_clean.py` would also rewrite the response the client receives, and a streaming client crashes because it expects SSE and gets JSON. With them, the client gets the original stream and only the UI shows the cleaned-up version. J5 doesn't stream, so its responses arrive as plain JSON either way.
+
+## The call viewer (`viewer.py`)
+
+A small page that only understands the Messages API, made for a projector:
+
+- **Live:** calls appear while they're still running ("waiting for the model…") and fill in when the answer arrives.
+- **One block per thing:** system prompt, tools (each one folds open), messages, response. `text`, `tool_use`, `tool_result` and `thinking` blocks each get their own style; `<system-reminder>` blocks the harness injects are marked as such.
+- **Where the characters go:** a bar that splits each request into system, tools and messages.
+- **What's new:** messages added since the previous call in the same conversation are marked `new`.
+- **Usage:** input, output and cache tokens per call, plus `stop_reason`.
+- **Streamed responses** (Claude Code) are rebuilt from their events into normal blocks.
+- **Graceful fallback:** unknown block types show as labelled raw JSON, and bodies that aren't JSON show as text. A "Raw JSON" section is always there.
+- **Safe to project:** API keys and auth headers are never stored, and it only listens on 127.0.0.1. `count_tokens` and other calls are hidden unless you tick the box.
+
+It keeps the last 300 calls in memory; **Clear** empties it. Use another port with `--set viewer_port=9000`.
 
 ## Useful mitmweb filters
 
@@ -61,7 +78,7 @@ Real Claude Code requests, captured with this proxy. They're scrubbed: device, a
 
 If a client has no base-URL setting, run mitmproxy as a regular HTTPS proxy. This needs its certificate:
 
-1. `uv run mitmweb -p 8080 --set store_streamed_bodies=true --set stream_large_bodies=0 --set http2=false -s sse_clean.py`
+1. `uv run mitmweb -p 8080 --set store_streamed_bodies=true --set stream_large_bodies=0 --set http2=false -s viewer.py -s sse_clean.py`
 2. Install the certificate: run the client once through the proxy, then trust `~/.mitmproxy/mitmproxy-ca-cert.pem`. Alternatively, open <http://mitm.it> in a browser that uses the proxy and follow the steps for your OS.
 3. In the client's terminal:
    ```bash

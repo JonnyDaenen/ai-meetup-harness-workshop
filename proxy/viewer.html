@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Call viewer</title>
+<style>
+  :root {
+    --bg: #f6f5fb; --panel: #ffffff; --ink: #1c1f4a; --muted: #5d6088; --line: #e2dff3;
+    --accent: #5b4fb8; --accent-soft: #ece9fb; --sys: #7c70cf; --tools: #1c1f4a; --msgs: #e07b57;
+    --user: #e9f3ff; --user-line: #8fb6e8; --asst: #f1fbe3; --asst-line: #9cc95a;
+    --reminder: #fff4e8; --reminder-line: #e0a86b; --tooluse: #f3efff; --result: #f4f6f8;
+    --new: #c8f56a; --err: #b42318; --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12142e; --panel: #1b1e42; --ink: #eceaf9; --muted: #a9a6cf; --line: #2e3166;
+      --accent: #b3a9f5; --accent-soft: #272a5c; --sys: #9a8fe2; --tools: #c9c6ec; --msgs: #f0a07f;
+      --user: #1d2c4a; --user-line: #4a77b0; --asst: #1f2e1d; --asst-line: #6f9a3a;
+      --reminder: #3a2a1a; --reminder-line: #b07a3e; --tooluse: #2a2560; --result: #20233f;
+      --err: #ff8a80;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; height: 100vh; display: flex; flex-direction: column; }
+  header { display: flex; align-items: center; gap: 16px; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; }
+  header h1 { font-size: 16px; margin: 0; letter-spacing: .02em; }
+  .live { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+  .live.on .dot { background: #3fb950; box-shadow: 0 0 0 3px rgba(63,185,80,.2); }
+  header label { color: var(--muted); font-size: 13px; display: inline-flex; gap: 4px; align-items: center; }
+  header .spacer { flex: 1; }
+  button { font: inherit; border: 1px solid var(--line); background: var(--panel); color: var(--ink); padding: 4px 10px; border-radius: 6px; cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  main { flex: 1; display: grid; grid-template-columns: 340px 1fr; min-height: 0; }
+  #list { overflow-y: auto; border-right: 1px solid var(--line); background: var(--panel); }
+  .item { padding: 10px 14px; border-bottom: 1px solid var(--line); cursor: pointer; }
+  .item:hover { background: var(--accent-soft); }
+  .item.sel { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+  .item .top { display: flex; justify-content: space-between; gap: 8px; }
+  .item .path { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  .item .model { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .item .meta { font-size: 12px; color: var(--muted); display: flex; gap: 10px; flex-wrap: wrap; }
+  .item.minor { opacity: .6; }
+  .pending { color: var(--accent); }
+  .error { color: var(--err); }
+  #detail { overflow-y: auto; padding: 20px 24px 60px; }
+  .empty { color: var(--muted); margin-top: 80px; text-align: center; }
+  h2 { font-size: 20px; margin: 0 0 4px; }
+  h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 28px 0 10px; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+  .chip { background: var(--accent-soft); border-radius: 999px; padding: 2px 10px; font-size: 12px; }
+  .chip b { font-weight: 600; }
+  .bar { display: flex; height: 18px; border-radius: 6px; overflow: hidden; margin: 10px 0 6px; background: var(--line); }
+  .bar div { min-width: 2px; }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+  details { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; margin: 8px 0; }
+  details > summary { cursor: pointer; padding: 8px 12px; font-weight: 600; list-style: none; display: flex; gap: 8px; align-items: baseline; }
+  details > summary::-webkit-details-marker { display: none; }
+  details > summary::before { content: "▸"; color: var(--muted); }
+  details[open] > summary::before { content: "▾"; }
+  details > summary .sub { font-weight: 400; color: var(--muted); font-size: 12px; }
+  details > .body { padding: 0 12px 12px; }
+  pre, .text { white-space: pre-wrap; word-break: break-word; margin: 0; }
+  pre { font-family: var(--mono); font-size: 12px; }
+  .msg { border-left: 4px solid var(--line); background: var(--panel); border-radius: 8px; padding: 10px 12px; margin: 10px 0; position: relative; }
+  .msg.user { border-left-color: var(--user-line); }
+  .msg.assistant { border-left-color: var(--asst-line); }
+  .msg.new::after { content: "new"; position: absolute; top: 8px; right: 10px; background: var(--new); color: #1c1f4a; font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 999px; }
+  .role { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 6px; }
+  .block { border-radius: 6px; padding: 8px 10px; margin: 6px 0; }
+  .block .label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 4px; }
+  .b-text.user { background: var(--user); }
+  .b-text.assistant { background: var(--asst); }
+  .b-reminder { background: var(--reminder); border: 1px dashed var(--reminder-line); }
+  .b-tool_use { background: var(--tooluse); }
+  .b-tool_result { background: var(--result); }
+  .b-thinking { background: var(--accent-soft); font-style: italic; }
+  .b-other { background: var(--result); border: 1px dashed var(--line); }
+  .clip { max-height: 320px; overflow: hidden; position: relative; }
+  .clip.long::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 48px; background: linear-gradient(transparent, var(--panel)); }
+  .more { font-size: 12px; margin-top: 4px; }
+  .note { color: var(--muted); font-size: 12px; }
+  @media (max-width: 760px) { main { grid-template-columns: 1fr; grid-template-rows: 40vh 1fr; } #list { border-right: none; border-bottom: 1px solid var(--line); } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Call viewer</h1>
+  <span class="live" id="live"><span class="dot"></span><span id="liveText">connecting…</span></span>
+  <span class="spacer"></span>
+  <label><input type="checkbox" id="follow" checked> follow newest</label>
+  <label><input type="checkbox" id="minor"> show count_tokens &amp; other calls</label>
+  <button id="clear" type="button">Clear</button>
+</header>
+<main>
+  <nav id="list"></nav>
+  <section id="detail"><p class="empty">Waiting for calls… point your agent at the proxy and say hi.</p></section>
+</main>
+<script>
+"use strict";
+// Everything from the wire is rendered with textContent: model output can never inject HTML here.
+const calls = new Map();
+let selected = null;
+const $ = (id) => document.getElementById(id);
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined && text !== null) e.textContent = text;
+  return e;
+}
+const isMessages = (c) => /\/v1\/messages(\?|$)/.test(c.path || "");
+const size = (v) => (v === undefined || v === null) ? 0 : (typeof v === "string" ? v.length : JSON.stringify(v).length);
+const fmt = (n) => n === undefined || n === null ? "–" : Number(n).toLocaleString();
+const pretty = (v) => { try { return JSON.stringify(v, null, 2); } catch { return String(v); } };
+
+function collapsible(title, sub, bodyNode, open) {
+  const d = el("details");
+  if (open) d.open = true;
+  const s = el("summary", null, title);
+  if (sub) s.append(el("span", "sub", sub));
+  const b = el("div", "body");
+  b.append(bodyNode);
+  d.append(s, b);
+  return d;
+}
+
+function clipped(node) {
+  // Long blocks start folded so a 27k-character system prompt doesn't swallow the page.
+  const wrap = el("div", "clip");
+  wrap.append(node);
+  const btn = el("button", "more", "show all");
+  btn.type = "button";
+  btn.hidden = true;
+  btn.onclick = () => { wrap.classList.remove("clip", "long"); btn.remove(); };
+  requestAnimationFrame(() => { if (wrap.scrollHeight > 330) { wrap.classList.add("long"); btn.hidden = false; } });
+  const outer = el("div");
+  outer.append(wrap, btn);
+  return outer;
+}
+
+function block(type, label, contentNode, role) {
+  const b = el("div", `block b-${type}${role ? " " + role : ""}`);
+  b.append(el("div", "label", label), contentNode);
+  return b;
+}
+
+function renderBlocks(content, role) {
+  const frag = document.createDocumentFragment();
+  if (typeof content === "string") content = [{ type: "text", text: content }];
+  if (!Array.isArray(content)) { frag.append(block("other", "unrecognised content", el("pre", null, pretty(content)))); return frag; }
+  for (const b of content) {
+    try { frag.append(renderBlock(b, role)); }
+    catch { frag.append(block("other", "could not render", el("pre", null, pretty(b)))); }
+  }
+  return frag;
+}
+
+function renderBlock(b, role) {
+  switch (b && b.type) {
+    case "text": {
+      const reminder = /^\s*<system-reminder>/.test(b.text || "");
+      return reminder
+        ? block("reminder", "system-reminder · injected by the harness", clipped(el("div", "text", b.text)))
+        : block("text", `text · ${fmt(size(b.text))} chars`, clipped(el("div", "text", b.text)), role);
+    }
+    case "tool_use":
+      return block("tool_use", `tool_use → ${b.name}  ·  id ${b.id || "?"}`, clipped(el("pre", null, pretty(b.input))));
+    case "tool_result": {
+      const inner = el("div");
+      if (typeof b.content === "string" || Array.isArray(b.content)) inner.append(renderBlocks(b.content, role));
+      else inner.append(el("pre", null, pretty(b.content)));
+      return block("tool_result", `tool_result ← ${b.tool_use_id || "?"}${b.is_error ? "  ·  ERROR" : ""}`, inner);
+    }
+    case "thinking":
+      return block("thinking", "thinking", clipped(el("div", "text", b.thinking || "(empty — summarised or hidden by the server)")));
+    case "redacted_thinking":
+      return block("thinking", "redacted thinking", el("div", "note", "encrypted; only the server can read it"));
+    case "image": case "document":
+      return block("other", b.type, el("div", "note", `${b.source && b.source.media_type || "binary"} · not shown`));
+    default:
+      return block("other", `${(b && b.type) || "unknown"} · shown as raw JSON`, clipped(el("pre", null, pretty(b))));
+  }
+}
+
+function previousOf(call) {
+  // The last earlier messages call in the same conversation: same first message, shorter history.
+  const req = call.request; if (!req || !Array.isArray(req.messages) || !req.messages.length) return null;
+  const first = JSON.stringify(req.messages[0]);
+  const list = [...calls.values()].filter(c => c.started < call.started && isMessages(c) && c.request && Array.isArray(c.request.messages));
+  for (let i = list.length - 1; i >= 0; i--) {
+    const m = list[i].request.messages;
+    if (m.length && m.length < req.messages.length && JSON.stringify(m[0]) === first) return list[i];
+  }
+  return null;
+}
+
+function renderList() {
+  const showMinor = $("minor").checked;
+  const list = $("list");
+  list.replaceChildren();
+  const items = [...calls.values()].sort((a, b) => b.started - a.started);
+  for (const c of items) {
+    const minor = !isMessages(c);
+    if (minor && !showMinor) continue;
+    const it = el("div", "item" + (c.id === selected ? " sel" : "") + (minor ? " minor" : ""));
+    const top = el("div", "top");
+    top.append(el("span", "model", (c.request && c.request.model) || c.path), el("span", "path", new Date(c.started * 1000).toLocaleTimeString()));
+    const meta = el("div", "meta");
+    if (c.state === "pending") meta.append(el("span", "pending", "● waiting for the model…"));
+    else if (c.state === "error") meta.append(el("span", "error", "error"));
+    else {
+      const u = (c.response && c.response.usage) || {};
+      meta.append(el("span", null, `${c.status}`), el("span", null, `${c.duration}s`));
+      if (u.input_tokens !== undefined) meta.append(el("span", null, `in ${fmt(u.input_tokens)} · out ${fmt(u.output_tokens)}`));
+      if (c.response && c.response.stop_reason) meta.append(el("span", null, c.response.stop_reason));
+    }
+    if (minor) meta.append(el("span", "path", c.path));
+    it.append(top, meta);
+    it.onclick = () => { selected = c.id; $("follow").checked = false; renderList(); renderDetail(); };
+    list.append(it);
+  }
+}
+
+function renderDetail() {
+  const d = $("detail");
+  const c = calls.get(selected);
+  if (!c) { d.replaceChildren(el("p", "empty", "Waiting for calls… point your agent at the proxy and say hi.")); return; }
+  const scroll = d.scrollTop;
+  d.replaceChildren();
+  const req = c.request || {};
+  d.append(el("h2", null, `${c.method} ${c.path}`));
+  const chips = el("div", "chips");
+  const chip = (k, v) => { const s = el("span", "chip"); s.append(el("b", null, k + " "), document.createTextNode(v)); chips.append(s); };
+  if (req.model) chip("model", req.model);
+  if (req.max_tokens) chip("max_tokens", fmt(req.max_tokens));
+  chip("stream", c.streamed ? "yes" : "no");
+  chip("state", c.state === "done" ? `${c.status} in ${c.duration}s` : c.state);
+  if (c.headers && c.headers["user-agent"]) chip("client", c.headers["user-agent"]);
+  d.append(chips);
+  if (c.error) d.append(el("p", "error", c.error));
+
+  if (c.request_text !== undefined) {
+    d.append(el("h3", null, "Request (not JSON, shown as text)"), collapsible("body", `${fmt(c.request_text.length)} chars`, el("pre", null, c.request_text), true));
+  } else if (c.request) {
+    // Where the request's size goes: the "what's in a hi!" picture, live.
+    const parts = [["system", size(req.system), "var(--sys)"], ["tools", size(req.tools), "var(--tools)"], ["messages", size(req.messages), "var(--msgs)"]];
+    const total = parts.reduce((s, p) => s + p[1], 0) || 1;
+    d.append(el("h3", null, `Request · ${fmt(size(req))} characters`));
+    const bar = el("div", "bar"), legend = el("div", "legend");
+    for (const [name, n, color] of parts) {
+      const seg = el("div"); seg.style.flex = String(n); seg.style.background = color; seg.title = `${name}: ${fmt(n)}`; bar.append(seg);
+      const l = el("span"); const sw = el("i"); sw.style.background = color; l.append(sw, `${name} ${fmt(n)} (${Math.round(n / total * 100)}%)`); legend.append(l);
+    }
+    d.append(bar, legend);
+
+    if (req.system !== undefined) {
+      const sys = typeof req.system === "string" ? el("div", "text", req.system) : renderBlocks(req.system, "system");
+      d.append(collapsible("System prompt", `${fmt(size(req.system))} chars`, sys instanceof Node && !(sys instanceof DocumentFragment) ? clipped(sys) : sys, false));
+    }
+    if (Array.isArray(req.tools) && req.tools.length) {
+      const tl = el("div");
+      for (const t of req.tools) tl.append(collapsible(t.name || t.type || "tool", `${fmt(size(t))} chars${t.description ? " · " + t.description.slice(0, 90).replace(/\s+/g, " ") : ""}`, el("pre", null, pretty(t)), false));
+      d.append(collapsible(`Tools (${req.tools.length})`, req.tools.map(t => t.name || t.type).join(", "), tl, false));
+    }
+    if (Array.isArray(req.messages)) {
+      const prev = previousOf(c);
+      const newFrom = prev ? prev.request.messages.length : 0;
+      d.append(el("h3", null, `Messages (${req.messages.length})${prev ? ` · ${req.messages.length - newFrom} new since the previous call` : ""}`));
+      req.messages.forEach((m, i) => {
+        const box = el("div", `msg ${m.role}${prev && i >= newFrom ? " new" : ""}`);
+        box.append(el("div", "role", `${i + 1} · ${m.role}`), renderBlocks(m.content, m.role));
+        d.append(box);
+      });
+    }
+    const rest = Object.fromEntries(Object.entries(req).filter(([k]) => !["system", "tools", "messages"].includes(k)));
+    d.append(collapsible("Other request fields", Object.keys(rest).join(", "), el("pre", null, pretty(rest)), false));
+  }
+
+  d.append(el("h3", null, "Response"));
+  if (c.state === "pending") d.append(el("p", "pending", "● waiting for the model…"));
+  else if (c.response_text !== undefined) d.append(collapsible("body (not JSON, shown as text)", `${fmt(c.response_text.length)} chars`, el("pre", null, c.response_text), true));
+  else if (c.response && Array.isArray(c.response.content)) {
+    const r = c.response, u = r.usage || {};
+    const rc = el("div", "chips");
+    const add = (k, v) => { if (v === undefined || v === null) return; const s = el("span", "chip"); s.append(el("b", null, k + " "), document.createTextNode(typeof v === "number" ? fmt(v) : v)); rc.append(s); };
+    add("stop_reason", r.stop_reason); add("input_tokens", u.input_tokens); add("output_tokens", u.output_tokens);
+    add("cache_read", u.cache_read_input_tokens); add("cache_write", u.cache_creation_input_tokens);
+    d.append(rc);
+    const box = el("div", "msg assistant");
+    box.append(el("div", "role", "assistant (response)"), renderBlocks(r.content, "assistant"));
+    d.append(box);
+  } else if (c.response) {
+    d.append(block("other", c.response.type === "error" ? "error response" : "response · shown as raw JSON", el("pre", null, pretty(c.response))));
+  } else d.append(el("p", "note", "no body"));
+
+  d.append(collapsible("Raw JSON (request + response)", "everything the viewer received", el("pre", null, pretty({ request: c.request ?? c.request_text, response: c.response ?? c.response_text })), false));
+  d.scrollTop = scroll;
+}
+
+function upsert(c) {
+  calls.set(c.id, c);
+  if ($("follow").checked && isMessages(c)) selected = c.id;
+  if (!selected) selected = c.id;
+}
+
+async function start() {
+  try { (await (await fetch("/api/calls")).json()).forEach(upsert); } catch {}
+  renderList(); renderDetail();
+  const es = new EventSource("/events");
+  es.onopen = () => { $("live").classList.add("on"); $("liveText").textContent = "live"; };
+  es.onerror = () => { $("live").classList.remove("on"); $("liveText").textContent = "reconnecting…"; };
+  es.addEventListener("call", (e) => {
+    const c = JSON.parse(e.data);
+    const wasSelected = c.id === selected;
+    upsert(c); renderList();
+    if (wasSelected || c.id === selected) renderDetail();
+  });
+  es.addEventListener("clear", () => { calls.clear(); selected = null; renderList(); renderDetail(); });
+}
+$("minor").onchange = renderList;
+$("follow").onchange = () => { if ($("follow").checked) { const last = [...calls.values()].filter(isMessages).sort((a, b) => b.started - a.started)[0]; if (last) selected = last.id; renderList(); renderDetail(); } };
+$("clear").onclick = () => fetch("/api/clear", { method: "POST" });
+start();
+</script>
+</body>
+</html>
