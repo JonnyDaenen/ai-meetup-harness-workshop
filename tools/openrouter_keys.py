@@ -7,7 +7,8 @@
 Needs an OpenRouter *management* key in OPENROUTER_MANAGEMENT_KEY (shell or the repo's .env).
 Only keys whose name starts with --prefix are ever touched.
 
-    uv run tools/openrouter_keys.py create 80 --workspace-id <uuid>   # keys + printable cards
+    uv run tools/openrouter_keys.py guard                             # workspace: only the workshop models
+    uv run tools/openrouter_keys.py create 80                         # keys + printable cards
     uv run tools/openrouter_keys.py list                              # usage per key and in total
     uv run tools/openrouter_keys.py disable                           # stop all keys (reversible)
     uv run tools/openrouter_keys.py delete                            # remove all keys for good
@@ -26,6 +27,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 API = "https://openrouter.ai/api/v1"
+WORKSPACE = "2026-10-13-agentic-ai-meetup-002"  # slug or id; the keys and their guardrail live here
+MODELS = ["qwen/qwen3.5-9b", "anthropic/claude-haiku-5.5"]
 ROOT = Path(__file__).resolve().parent.parent
 OUT = Path(__file__).resolve().parent / "out"
 
@@ -60,11 +63,18 @@ def call(method: str, path: str, body: dict | None = None) -> dict:
         sys.exit(f"{method} {path} failed: HTTP {e.code} {e.read().decode()[:300]}")
 
 
-def workshop_keys(prefix: str) -> list[dict]:
-    """All keys whose name starts with prefix (the API pages by 100)."""
+def workspace(ref: str) -> dict:
+    for ws in call("GET", "/workspaces")["data"]:
+        if ref in (ws["id"], ws["slug"]):
+            return ws
+    sys.exit(f"No workspace {ref!r}. Create it in the dashboard, or pass --workspace.")
+
+
+def workshop_keys(prefix: str, workspace_id: str) -> list[dict]:
+    """The workspace's keys whose name starts with prefix (the API pages by 100)."""
     keys, offset = [], 0
     while True:
-        page = call("GET", f"/keys?offset={offset}")["data"]
+        page = call("GET", f"/keys?workspace_id={workspace_id}&include_disabled=true&include_expired=true&offset={offset}")["data"]
         keys += [k for k in page if (k.get("name") or "").startswith(prefix)]
         if len(page) < 100:
             return keys
@@ -80,13 +90,23 @@ def confirm(question: str, yes: bool) -> None:
 
 # --- commands ---
 
+def guard(args):
+    """Restrict the workspace's default guardrail (it covers every key in the workspace) to MODELS."""
+    ws = workspace(args.workspace)
+    confirm(f"Allow only {', '.join(args.models)} in workspace {ws['name']!r}?", args.yes)
+    call("PATCH", f"/guardrails/{ws['default_guardrail_id']}", {"allowed_models": args.models})
+    g = call("GET", f"/guardrails/{ws['default_guardrail_id']}")["data"]
+    print(f"Guardrail {g.get('name')!r}: allowed_models = {g.get('allowed_models')}")
+
+
 def create(args):
     expires = datetime.fromisoformat(args.expires).astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    existing = {k["name"] for k in workshop_keys(args.prefix)}
+    ws = workspace(args.workspace)
+    existing = {k["name"] for k in workshop_keys(args.prefix, ws["id"])}
     names = [f"{args.prefix}{i:03d}" for i in range(args.start, args.start + args.count)]
     if clash := [n for n in names if n in existing]:
         sys.exit(f"Keys already exist: {', '.join(clash[:5])}... Use --start to continue numbering.")
-    confirm(f"Create {len(names)} keys ({names[0]}..{names[-1]}), ${args.limit} each, expiring {expires}?", args.yes)
+    confirm(f"Create {len(names)} keys ({names[0]}..{names[-1]}) in {ws['name']!r}, ${args.limit} each, expiring {expires}?", args.yes)
 
     OUT.mkdir(exist_ok=True)
     csv_path = OUT / f"{args.prefix.rstrip('-')}-keys.csv"
@@ -97,10 +117,7 @@ def create(args):
         if new_file:
             w.writerow(["name", "key", "limit", "expires_at"])
         for name in names:
-            body = {"name": name, "limit": args.limit, "expires_at": expires}
-            if args.workspace_id:
-                body["workspace_id"] = args.workspace_id
-            res = call("POST", "/keys", body)
+            res = call("POST", "/keys", {"name": name, "limit": args.limit, "expires_at": expires, "workspace_id": ws["id"]})
             w.writerow([name, res["key"], args.limit, expires])
             f.flush()
             created.append((name, res["key"]))
@@ -113,7 +130,7 @@ def create(args):
 
 
 def list_keys(args):
-    keys = workshop_keys(args.prefix)
+    keys = workshop_keys(args.prefix, workspace(args.workspace)["id"])
     if not keys:
         print(f"No keys starting with {args.prefix!r}.")
         return
@@ -126,7 +143,7 @@ def list_keys(args):
 
 
 def disable(args):
-    keys = [k for k in workshop_keys(args.prefix) if not k.get("disabled")]
+    keys = [k for k in workshop_keys(args.prefix, workspace(args.workspace)["id"]) if not k.get("disabled")]
     if not keys:
         print("Nothing to disable.")
         return
@@ -137,7 +154,7 @@ def disable(args):
 
 
 def delete(args):
-    keys = workshop_keys(args.prefix)
+    keys = workshop_keys(args.prefix, workspace(args.workspace)["id"])
     if not keys:
         print("Nothing to delete.")
         return
@@ -201,14 +218,17 @@ MODEL_ID=qwen/qwen3.5-9b</pre>
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--prefix", default="meetup-", help="only keys whose name starts with this (default: meetup-)")
+    p.add_argument("--workspace", default=WORKSPACE, help=f"workspace slug or id (default: {WORKSPACE})")
     p.add_argument("-y", "--yes", action="store_true", help="don't ask for confirmation")
     sub = p.add_subparsers(dest="cmd", required=True)
 
+    g = sub.add_parser("guard", help="allow only the workshop models in the workspace")
+    g.add_argument("--models", nargs="+", default=MODELS)
+    g.set_defaults(fn=guard)
     c = sub.add_parser("create", help="create COUNT keys and printable cards")
     c.add_argument("count", type=int)
     c.add_argument("--limit", type=float, default=1.0, help="spending limit per key in USD (default: 1)")
     c.add_argument("--expires", default="2026-10-14T23:59:59+02:00", help="ISO date-time the keys stop working")
-    c.add_argument("--workspace-id", help="workspace UUID (default: your default workspace)")
     c.add_argument("--start", type=int, default=1, help="first number, to add more keys later (default: 1)")
     c.set_defaults(fn=create)
     sub.add_parser("list", help="usage per key and in total").set_defaults(fn=list_keys)
