@@ -179,30 +179,58 @@ def qr_svg(text: str) -> str:
     return svg[svg.index("<svg"):]
 
 
+LOGO_AREA_MM2 = 105  # every logo in the bottom row gets about this much area, so they look equally heavy
+LOGO_MAX_H_MM = 7
+
+
+def logo_aspect(path: str) -> float | None:
+    """Width / height of an svg (viewBox) or png (header); None if unknown."""
+    data = Path(path).read_bytes()
+    if path.lower().endswith(".svg"):
+        import re
+        if m := re.search(rb'viewBox="\s*[-\d.]+[ ,]+[-\d.]+[ ,]+([\d.]+)[ ,]+([\d.]+)', data):
+            return float(m[1]) / float(m[2])
+    elif data[:8] == b"\x89PNG\r\n\x1a\n":
+        import struct
+        w, h = struct.unpack(">II", data[16:24])
+        return w / h
+    return None
+
+
 def logo_tags(paths: list[str] | None) -> str:
-    return f'<div class="logos">{"".join(logo_tag(p) for p in paths)}</div>' if paths else ""
+    if not paths:
+        return ""
+    tags = []
+    for p in paths:
+        aspect = logo_aspect(p)
+        if aspect:  # equal area: wide wordmarks get less height, compact marks more (capped)
+            h = min(LOGO_MAX_H_MM, (LOGO_AREA_MM2 / aspect) ** 0.5)
+            tags.append(logo_tag(p, f"height:{h:.1f}mm;width:{h * aspect:.1f}mm"))
+        else:
+            tags.append(logo_tag(p))
+    return f'<div class="logos">{"".join(tags)}</div>'
 
 
 def event_mark(event: str) -> str:
-    """The event as the flyer's rotated title: "AGENTIC AI / MEETUP #002"."""
+    """The event in the flyer's lettering, on one line: "AGENTIC AI MEETUP #002", the last part in purple."""
     name, _, number = event.rpartition(" #")
     *first, last = (name or event).split()
-    num = f' <small>#{html.escape(number)}</small>' if number else ""
-    return f'<div class="mark">{html.escape(" ".join(first))}<br><span>{html.escape(last)}</span>{num}</div>'
+    num = f" #{html.escape(number)}" if number else ""
+    return f'<div class="mark">{html.escape(" ".join(first))} <span>{html.escape(last)}{num}</span></div>'
 
 
 def top_bar(args, name: str) -> str:
     """Sponsors style: a text heading. Branded style: the rotated event title, "workshop key" and the number."""
     if args.style == "branded":
-        right = f'<div class="label">Workshop key<br><small>{html.escape(name)}</small></div>'
+        right = f'<div class="label">Workshop key <small>· {html.escape(name.removeprefix(args.prefix))}</small></div>'
         return f'<div class="top brandtop">{event_mark(args.event)}{right}</div>'
     return f'<div class="top"><b>{html.escape(args.event)} · workshop key</b><span>{html.escape(name)}</span></div>'
 
 
-def logo_tag(path: str) -> str:
+def logo_tag(path: str, style: str = "") -> str:
     data = Path(path).read_bytes()
     mime = {".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp"}[Path(path).suffix.lower()]
-    return f'<img class="logo" alt="" src="data:{mime};base64,{base64.b64encode(data).decode()}">'
+    return f'<img class="logo" alt="" style="{style}" src="data:{mime};base64,{base64.b64encode(data).decode()}">'
 
 
 def write_cards(created: list[tuple[str, str, str]], args) -> Path:
@@ -245,15 +273,11 @@ MODEL_ID=qwen/qwen3.5-9b</pre>
   .logos {{ position: absolute; left: 3.5mm; right: 3.5mm; bottom: 2.5mm; height: 8mm; display: flex; justify-content: space-around; align-items: center; }}
   .logos ~ .key, .key:has(~ .logos) {{ bottom: 12mm; }}
   .logos img {{ max-height: 8mm; max-width: 27mm; }}
-  .brandtop {{ align-items: flex-start; height: 8mm; margin-bottom: 1.5mm; }}
-  .brandtop ~ .body .qr svg {{ width: 21mm; height: 21mm; }}
-  .label {{ font-family: 'Oswald', 'Arial Narrow', Impact, sans-serif; font-weight: 700; text-transform: uppercase; font-size: 10pt; line-height: 1.1; color: #1C1F4A; text-align: right; }}
-  .label small {{ font-family: -apple-system, Helvetica, Arial, sans-serif; font-weight: 400; text-transform: none; font-size: 8.5pt; }}
-  .mark {{ font-family: 'Oswald', 'Arial Narrow', Impact, sans-serif; font-weight: 700; text-transform: uppercase;
-           font-size: 11pt; line-height: 0.88; color: #1C1F4A; transform: rotate(-5deg); transform-origin: left center; margin-top: 1mm; }}
+  .brandtop {{ align-items: baseline; }}
+  .mark {{ font-family: 'Oswald', 'Arial Narrow', Impact, sans-serif; font-weight: 700; text-transform: uppercase; font-size: 13pt; line-height: 1; color: #1C1F4A; white-space: nowrap; }}
   .mark span {{ color: #7C70CF; }}
-  .mark small {{ font-size: 8pt; color: #7C70CF; }}
-  .brandtop ~ .key {{ bottom: 11.2mm; }}
+  .label {{ font-family: 'Oswald', 'Arial Narrow', Impact, sans-serif; font-weight: 700; text-transform: uppercase; font-size: 9.5pt; color: #1C1F4A; white-space: nowrap; }}
+  .label small {{ font-family: -apple-system, Helvetica, Arial, sans-serif; font-weight: 400; text-transform: none; font-size: 8.5pt; }}
   @media print {{ * {{ -webkit-print-color-adjust: exact; print-color-adjust: exact; }} }}
 </style>
 {pages}
@@ -293,7 +317,7 @@ def main():
         sp.add_argument("--logo", nargs="+", help="one or more png/svg/jpg files along the bottom of every card")
         sp.add_argument("--event", default=EVENT, help=f"event name in the card heading (default: {EVENT})")
         sp.add_argument("--style", choices=["sponsors", "branded"], default="sponsors",
-                        help="sponsors: text heading; branded: the flyer's rotated event title on top. Logos go along the bottom in both")
+                        help="sponsors: plain text heading; branded: the event in the flyer's lettering. Logos go along the bottom in both")
     k.set_defaults(fn=cards)
     sub.add_parser("list", help="usage per key and in total").set_defaults(fn=list_keys)
     sub.add_parser("disable", help="disable all keys (reversible in the dashboard)").set_defaults(fn=disable)

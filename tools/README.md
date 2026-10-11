@@ -31,13 +31,13 @@ Rebuild the sheet without creating keys, e.g. with the sponsor logos along the b
 uv run tools/openrouter_keys.py cards --logo tools/out/logos/corda-campus.svg tools/out/logos/dataminded.svg tools/out/logos/trendminer.svg
 ```
 
-Or the branded style: the event name as the flyer's rotated title in the top bar, the logos along the bottom as above (written to `meetup-cards-branded.html`, so both versions can exist side by side):
+Or the branded style: the event name in the flyer's lettering in the top bar, the logos along the bottom as above (written to `meetup-cards-branded.html`, so both versions can exist side by side):
 
 ```bash
 uv run tools/openrouter_keys.py cards --style branded --logo tools/out/logos/corda-campus.svg tools/out/logos/dataminded.svg tools/out/logos/trendminer.svg
 ```
 
-Logos can be png, svg or jpg; keep them in `tools/out/logos/` so they stay out of git. The heading reads "<event> · workshop key": set `EVENT` at the top of the script or pass `--event "..."`. Each key is $1, expiring 14 Oct 2026 at midnight (`--limit`, `--expires` to change). Need more on the night? `create 20 --start 81 ...`.
+Bottom-row logos are sized to the same visual area (`LOGO_AREA_MM2`), so a long wordmark doesn't look smaller than a compact one. Logos can be png, svg or jpg; keep them in `tools/out/logos/` so they stay out of git. The heading reads "<event> · workshop key": set `EVENT` at the top of the script or pass `--event "..."`. Each key is $1, expiring 14 Oct 2026 at midnight (`--limit`, `--expires` to change). Need more on the night? `create 20 --start 81 ...`.
 
 **During and after**
 
