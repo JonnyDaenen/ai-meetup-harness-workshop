@@ -9,7 +9,7 @@ Only keys whose name starts with --prefix are ever touched.
 
     uv run tools/openrouter_keys.py guard                             # workspace: only the workshop models
     uv run tools/openrouter_keys.py create 80                         # keys + printable cards
-    uv run tools/openrouter_keys.py cards --logo sponsors.png        # rebuild the cards, no new keys
+    uv run tools/openrouter_keys.py cards --logo a.svg b.svg         # rebuild the cards, no new keys
     uv run tools/openrouter_keys.py list                              # usage per key and in total
     uv run tools/openrouter_keys.py disable                           # stop all keys (reversible)
     uv run tools/openrouter_keys.py delete                            # remove all keys for good
@@ -31,6 +31,7 @@ from pathlib import Path
 API = "https://openrouter.ai/api/v1"
 WORKSPACE = "2026-10-13-agentic-ai-meetup-002"  # slug or id; the keys and their guardrail live here
 MODELS = ["qwen/qwen3.5-9b", "anthropic/claude-haiku-5.5"]
+EVENT = "Agentic AI Meetup #002"  # card heading: "<EVENT> · workshop key"
 ROOT = Path(__file__).resolve().parent.parent
 OUT = Path(__file__).resolve().parent / "out"
 
@@ -178,9 +179,11 @@ def qr_svg(text: str) -> str:
     return svg[svg.index("<svg"):]
 
 
-def logo_tag(path: str | None) -> str:
-    if not path:
-        return ""
+def logo_tags(paths: list[str] | None) -> str:
+    return f'<div class="logos">{"".join(logo_tag(p) for p in paths)}</div>' if paths else ""
+
+
+def logo_tag(path: str) -> str:
     data = Path(path).read_bytes()
     mime = {".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp"}[Path(path).suffix.lower()]
     return f'<img class="logo" alt="" src="data:{mime};base64,{base64.b64encode(data).decode()}">'
@@ -188,22 +191,22 @@ def logo_tag(path: str | None) -> str:
 
 def write_cards(created: list[tuple[str, str, str]], args) -> Path:
     """One A4 page per 10 cards (2 x 5), each card 52 x 92 mm, ready to cut."""
-    logo = logo_tag(getattr(args, "logo", None))
+    logos = logo_tags(getattr(args, "logo", None))
     cards = [
         f"""<div class="card">
-  <div class="top"><b>{html.escape(args.title)}</b><span>{html.escape(name)}</span></div>
+  <div class="top"><b>{html.escape(args.event)} · workshop key</b><span>{html.escape(name)}</span></div>
   <div class="body">
     <div class="qr">{qr_svg(key)}</div>
     <div>
-      <p>Scan the code to copy the key, then add to <code>.env</code>:</p>
+      <p>Scan to copy the key. In <code>.env</code>:</p>
       <pre>ANTHROPIC_BASE_URL=http://127.0.0.1:8080/api
 ANTHROPIC_API_KEY=&lt;this key&gt;
 MODEL_ID=qwen/qwen3.5-9b</pre>
-      <p class="small">Proxy: <code>--mode reverse:https://openrouter.ai</code> · limit ${float(limit):g} · stops working after the meetup</p>
+      <p class="small">Proxy: <code>--mode reverse:https://openrouter.ai</code><br>${float(limit):g} limit · stops working after the meetup</p>
     </div>
   </div>
   <code class="key">{html.escape(key)}</code>
-  {logo}
+  {logos}
 </div>"""
         for name, key, limit in created
     ]
@@ -218,11 +221,13 @@ MODEL_ID=qwen/qwen3.5-9b</pre>
   .top {{ display: flex; justify-content: space-between; margin-bottom: 2mm; }}
   .body {{ display: flex; gap: 3mm; align-items: flex-start; }}
   .body > div:last-child {{ flex: 1; min-width: 0; }}
-  .qr svg {{ width: 24mm; height: 24mm; }}
+  .qr svg {{ width: 23mm; height: 23mm; }}
   pre {{ background: #F1EEFC; padding: 1.2mm; margin: 1mm 0; font-size: 5.7pt; overflow: hidden; }}
-  p {{ margin: 0 0 1mm; }} .small {{ font-size: 6.8pt; color: #3D4170; }}
-  .key {{ position: absolute; left: 3.5mm; bottom: 3mm; right: 46mm; font-size: 6.5pt; word-break: break-all; }}
-  .logo {{ position: absolute; right: 3.5mm; bottom: 3mm; max-width: 41mm; max-height: 9mm; }}
+  p {{ margin: 0 0 1mm; }} .small {{ font-size: 6.4pt; color: #3D4170; }} .small code {{ font-size: 5.9pt; }}
+  .key {{ position: absolute; left: 3.5mm; right: 3.5mm; bottom: 3mm; font-size: 6pt; word-break: break-all; }}
+  .logos {{ position: absolute; left: 3.5mm; right: 3.5mm; bottom: 2.5mm; height: 8mm; display: flex; justify-content: space-around; align-items: center; }}
+  .logos ~ .key, .key:has(~ .logos) {{ bottom: 12mm; }}
+  .logos img {{ max-height: 8mm; max-width: 27mm; }}
   @media print {{ * {{ -webkit-print-color-adjust: exact; print-color-adjust: exact; }} }}
 </style>
 {pages}
@@ -258,8 +263,8 @@ def main():
     c.add_argument("--start", type=int, default=1, help="first number, to add more keys later (default: 1)")
     c.set_defaults(fn=create)
     for sp in (c, k := sub.add_parser("cards", help="rebuild the printable cards from the saved CSV")):
-        sp.add_argument("--logo", help="png/svg/jpg shown on every card, e.g. the sponsors")
-        sp.add_argument("--title", default="AI Meetup · workshop key", help="card heading")
+        sp.add_argument("--logo", nargs="+", help="one or more png/svg/jpg files along the bottom of every card")
+        sp.add_argument("--event", default=EVENT, help=f"event name in the card heading (default: {EVENT})")
     k.set_defaults(fn=cards)
     sub.add_parser("list", help="usage per key and in total").set_defaults(fn=list_keys)
     sub.add_parser("disable", help="disable all keys (reversible in the dashboard)").set_defaults(fn=disable)

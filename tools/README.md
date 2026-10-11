@@ -25,7 +25,13 @@ uv run tools/openrouter_keys.py create 80   # 80 keys + printable cards
 
 This writes `tools/out/meetup-keys.csv` and `tools/out/meetup-cards.html`: 10 cards per A4 page (2 × 5, 52 × 92 mm), cut along the dashed lines. Print from Chrome with headers and footers off.
 
-Rebuild the sheet without creating keys, e.g. with a sponsor logo on every card: `uv run tools/openrouter_keys.py cards --logo sponsors.png` (png, svg or jpg; `--title` changes the heading). Each key is $1, expiring 14 Oct 2026 at midnight (`--limit`, `--expires` to change). Need more on the night? `create 20 --start 81 ...`.
+Rebuild the sheet without creating keys, e.g. with the sponsor logos along the bottom of every card:
+
+```bash
+uv run tools/openrouter_keys.py cards --logo tools/out/logos/corda-campus.svg tools/out/logos/dataminded.svg tools/out/logos/trendminer.svg
+```
+
+Logos can be png, svg or jpg; keep them in `tools/out/logos/` so they stay out of git. The heading reads "<event> · workshop key": set `EVENT` at the top of the script or pass `--event "..."`. Each key is $1, expiring 14 Oct 2026 at midnight (`--limit`, `--expires` to change). Need more on the night? `create 20 --start 81 ...`.
 
 **During and after**
 
