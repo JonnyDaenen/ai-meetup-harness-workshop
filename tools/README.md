@@ -2,6 +2,8 @@
 
 ## `openrouter_keys.py`: workshop keys
 
+Full organiser checklist: [docs/openrouter-setup.md](../docs/openrouter-setup.md).
+
 Hands out [OpenRouter](https://openrouter.ai) keys to participants who can't run a model locally, and takes them back afterwards. Every key gets a spending limit and an expiry date, and the script only ever touches keys whose name starts with `meetup-`.
 
 **One-time setup in the OpenRouter dashboard**

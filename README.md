@@ -38,7 +38,7 @@ flowchart TD
 |---|---|---|
 | [`proxy/`](proxy/) | mitmproxy in reverse mode, plus a live call viewer (`viewer.py`) and `sse_clean.py`, which makes streamed responses readable. Also scrubbed sample captures of Claude Code. | `proxy/pyproject.toml` (mitmproxy) |
 | [`agent/`](agent/) | **J5**, a minimal coding agent in three steps: chat only → bash tool → file tools | `agent/pyproject.toml` (anthropic, python-dotenv) |
-| [`docs/`](docs/) | Model setup: [local](docs/local-model.md), [remote](docs/remote-model.md), [Claude Code through the proxy](docs/claude-code.md) | |
+| [`docs/`](docs/) | Model setup: [local](docs/local-model.md), [remote](docs/remote-model.md), [Claude Code through the proxy](docs/claude-code.md), [workshop keys for organisers](docs/openrouter-setup.md) | |
 | [`exercises/`](exercises/) | Step-by-step exercises 00–06 | uses the agent's environment |
 | `.devcontainer/` | Optional sandbox, so the agent's bash tool can't touch your laptop | |
 

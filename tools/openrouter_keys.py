@@ -137,9 +137,9 @@ def list_keys(args):
     used = [k for k in keys if (k.get("usage") or 0) > 0]
     for k in sorted(keys, key=lambda k: k["name"]):
         state = "disabled" if k.get("disabled") else "active"
-        print(f"{k['name']:14s} {state:9s} used ${k.get('usage') or 0:.4f} of ${k.get('limit') or 0:.2f}")
+        print(f"{k['name']:14s} {state:9s} used ${k.get('usage') or 0:.6f} of ${k.get('limit') or 0:.2f}")
     total = sum(k.get("usage") or 0 for k in keys)
-    print(f"\n{len(keys)} keys, {len(used)} used, ${total:.4f} spent in total")
+    print(f"\n{len(keys)} keys, {len(used)} used, ${total:.6f} spent in total")
 
 
 def disable(args):
