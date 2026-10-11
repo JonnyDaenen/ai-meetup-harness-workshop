@@ -9,12 +9,14 @@ Only keys whose name starts with --prefix are ever touched.
 
     uv run tools/openrouter_keys.py guard                             # workspace: only the workshop models
     uv run tools/openrouter_keys.py create 80                         # keys + printable cards
+    uv run tools/openrouter_keys.py cards --logo sponsors.png        # rebuild the cards, no new keys
     uv run tools/openrouter_keys.py list                              # usage per key and in total
     uv run tools/openrouter_keys.py disable                           # stop all keys (reversible)
     uv run tools/openrouter_keys.py delete                            # remove all keys for good
 """
 
 import argparse
+import base64
 import csv
 import html
 import io
@@ -120,7 +122,7 @@ def create(args):
             res = call("POST", "/keys", {"name": name, "limit": args.limit, "expires_at": expires, "workspace_id": ws["id"]})
             w.writerow([name, res["key"], args.limit, expires])
             f.flush()
-            created.append((name, res["key"]))
+            created.append((name, res["key"], str(args.limit)))
             print(f"created {name}")
 
     cards = write_cards(created, args)
@@ -176,10 +178,20 @@ def qr_svg(text: str) -> str:
     return svg[svg.index("<svg"):]
 
 
-def write_cards(created: list[tuple[str, str]], args) -> Path:
-    cards = "\n".join(
+def logo_tag(path: str | None) -> str:
+    if not path:
+        return ""
+    data = Path(path).read_bytes()
+    mime = {".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp"}[Path(path).suffix.lower()]
+    return f'<img class="logo" alt="" src="data:{mime};base64,{base64.b64encode(data).decode()}">'
+
+
+def write_cards(created: list[tuple[str, str, str]], args) -> Path:
+    """One A4 page per 10 cards (2 x 5), each card 52 x 92 mm, ready to cut."""
+    logo = logo_tag(getattr(args, "logo", None))
+    cards = [
         f"""<div class="card">
-  <div class="top"><b>AI Meetup · workshop key</b><span>{html.escape(name)}</span></div>
+  <div class="top"><b>{html.escape(args.title)}</b><span>{html.escape(name)}</span></div>
   <div class="body">
     <div class="qr">{qr_svg(key)}</div>
     <div>
@@ -187,32 +199,46 @@ def write_cards(created: list[tuple[str, str]], args) -> Path:
       <pre>ANTHROPIC_BASE_URL=http://127.0.0.1:8080/api
 ANTHROPIC_API_KEY=&lt;this key&gt;
 MODEL_ID=qwen/qwen3.5-9b</pre>
-      <p class="small">Proxy: <code>--mode reverse:https://openrouter.ai</code> · limit ${args.limit:g} · stops working after the meetup</p>
+      <p class="small">Proxy: <code>--mode reverse:https://openrouter.ai</code> · limit ${float(limit):g} · stops working after the meetup</p>
     </div>
   </div>
   <code class="key">{html.escape(key)}</code>
+  {logo}
 </div>"""
-        for name, key in created
-    )
+        for name, key, limit in created
+    ]
+    pages = "\n".join(f'<div class="page">{"".join(cards[i:i + 10])}</div>' for i in range(0, len(cards), 10))
     page = f"""<!doctype html><meta charset="utf-8"><title>Workshop keys</title>
 <style>
+  @page {{ size: A4; margin: 10mm; }}
   body {{ font-family: -apple-system, Helvetica, Arial, sans-serif; color: #1C1F4A; margin: 0; }}
-  .sheet {{ display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; padding: 8mm; }}
-  .card {{ border: 1px dashed #8D86B8; border-radius: 3mm; padding: 4mm; break-inside: avoid; font-size: 9pt; }}
+  .page {{ display: grid; grid-template-columns: 92mm 92mm; grid-auto-rows: 52mm; gap: 2mm 6mm; break-after: page; }}
+  .page:last-child {{ break-after: auto; }}
+  .card {{ position: relative; border: 1px dashed #8D86B8; border-radius: 3mm; padding: 3.5mm; font-size: 8.5pt; overflow: hidden; }}
   .top {{ display: flex; justify-content: space-between; margin-bottom: 2mm; }}
   .body {{ display: flex; gap: 3mm; align-items: flex-start; }}
-  .qr svg {{ width: 28mm; height: 28mm; }}
-  pre {{ background: #F1EEFC; padding: 2mm; margin: 1mm 0; font-size: 7.5pt; }}
-  p {{ margin: 0 0 1mm; }} .small {{ font-size: 7.5pt; color: #3D4170; }}
-  .key {{ display: block; margin-top: 2mm; font-size: 7pt; word-break: break-all; }}
+  .body > div:last-child {{ flex: 1; min-width: 0; }}
+  .qr svg {{ width: 24mm; height: 24mm; }}
+  pre {{ background: #F1EEFC; padding: 1.2mm; margin: 1mm 0; font-size: 5.7pt; overflow: hidden; }}
+  p {{ margin: 0 0 1mm; }} .small {{ font-size: 6.8pt; color: #3D4170; }}
+  .key {{ position: absolute; left: 3.5mm; bottom: 3mm; right: 46mm; font-size: 6.5pt; word-break: break-all; }}
+  .logo {{ position: absolute; right: 3.5mm; bottom: 3mm; max-width: 41mm; max-height: 9mm; }}
+  @media print {{ * {{ -webkit-print-color-adjust: exact; print-color-adjust: exact; }} }}
 </style>
-<div class="sheet">
-{cards}
-</div>
+{pages}
 """
     path = OUT / f"{args.prefix.rstrip('-')}-cards.html"
     path.write_text(page)
     return path
+
+
+def cards(args):
+    """Rebuild the card sheet from the saved CSV (no API calls), e.g. with a logo."""
+    csv_path = OUT / f"{args.prefix.rstrip('-')}-keys.csv"
+    if not csv_path.exists():
+        sys.exit(f"No {csv_path.relative_to(ROOT)}: run create first.")
+    rows = [(r["name"], r["key"], r["limit"]) for r in csv.DictReader(csv_path.open())]
+    print(f"{len(rows)} cards: {write_cards(rows, args).relative_to(ROOT)}")
 
 
 def main():
@@ -231,6 +257,10 @@ def main():
     c.add_argument("--expires", default="2026-10-14T23:59:59+02:00", help="ISO date-time the keys stop working")
     c.add_argument("--start", type=int, default=1, help="first number, to add more keys later (default: 1)")
     c.set_defaults(fn=create)
+    for sp in (c, k := sub.add_parser("cards", help="rebuild the printable cards from the saved CSV")):
+        sp.add_argument("--logo", help="png/svg/jpg shown on every card, e.g. the sponsors")
+        sp.add_argument("--title", default="AI Meetup · workshop key", help="card heading")
+    k.set_defaults(fn=cards)
     sub.add_parser("list", help="usage per key and in total").set_defaults(fn=list_keys)
     sub.add_parser("disable", help="disable all keys (reversible in the dashboard)").set_defaults(fn=disable)
     sub.add_parser("delete", help="delete all keys for good").set_defaults(fn=delete)

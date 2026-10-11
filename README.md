@@ -46,6 +46,8 @@ J5 follows the first lessons of [shareAI-lab/learn-claude-code](https://github.c
 
 ## Prerequisites
 
+**Coming to the meetup? Do [docs/preparation.md](docs/preparation.md) at home first** (15 minutes, mostly downloads).
+
 - macOS, Linux or WSL, with a terminal
 - [uv](https://docs.astral.sh/uv/getting-started/installation/) (it installs the right Python for you)
 - **One** model:

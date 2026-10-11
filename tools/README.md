@@ -23,7 +23,9 @@ uv run tools/openrouter_keys.py create 80   # 80 keys + printable cards
 
 `guard` sets the workspace's default guardrail, which covers every key in the workspace, to `qwen/qwen3.5-9b` and `anthropic/claude-haiku-5.5` (`--models` to change). Other models get a 404.
 
-This writes `tools/out/meetup-keys.csv` and `tools/out/meetup-cards.html` (print it: two cards per row, cut along the dashed lines). Each key is $1, expiring 14 Oct 2026 at midnight (`--limit`, `--expires` to change). Need more on the night? `create 20 --start 81 ...`.
+This writes `tools/out/meetup-keys.csv` and `tools/out/meetup-cards.html`: 10 cards per A4 page (2 × 5, 52 × 92 mm), cut along the dashed lines. Print from Chrome with headers and footers off.
+
+Rebuild the sheet without creating keys, e.g. with a sponsor logo on every card: `uv run tools/openrouter_keys.py cards --logo sponsors.png` (png, svg or jpg; `--title` changes the heading). Each key is $1, expiring 14 Oct 2026 at midnight (`--limit`, `--expires` to change). Need more on the night? `create 20 --start 81 ...`.
 
 **During and after**
 
