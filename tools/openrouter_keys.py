@@ -183,22 +183,20 @@ def logo_tags(paths: list[str] | None) -> str:
     return f'<div class="logos">{"".join(logo_tag(p) for p in paths)}</div>' if paths else ""
 
 
-def brand_strip(event: str) -> str:
-    """Branded style, bottom: the event as the flyer's rotated title on the left, "workshop key" on the right."""
+def event_mark(event: str) -> str:
+    """The event as the flyer's rotated title: "AGENTIC AI / MEETUP #002"."""
     name, _, number = event.rpartition(" #")
     *first, last = (name or event).split()
     num = f' <small>#{html.escape(number)}</small>' if number else ""
-    mark = f'<div class="mark">{html.escape(" ".join(first))}<br><span>{html.escape(last)}</span>{num}</div>'
-    return f'<div class="logos brand">{mark}<div class="spacer"></div><div class="label">Workshop key</div></div>'
+    return f'<div class="mark">{html.escape(" ".join(first))}<br><span>{html.escape(last)}</span>{num}</div>'
 
 
 def top_bar(args, name: str) -> str:
-    """Branded style puts the logos in the top bar; the sponsors style a text heading."""
+    """Sponsors style: a text heading. Branded style: the rotated event title, "workshop key" and the number."""
     if args.style == "branded":
-        left = f'<div class="toplogos">{"".join(logo_tag(p) for p in args.logo or [])}</div>'
-    else:
-        left = f"<b>{html.escape(args.event)} · workshop key</b>"
-    return f'<div class="top">{left}<span>{html.escape(name)}</span></div>'
+        right = f'<div class="label">Workshop key<br><small>{html.escape(name)}</small></div>'
+        return f'<div class="top brandtop">{event_mark(args.event)}{right}</div>'
+    return f'<div class="top"><b>{html.escape(args.event)} · workshop key</b><span>{html.escape(name)}</span></div>'
 
 
 def logo_tag(path: str) -> str:
@@ -209,7 +207,7 @@ def logo_tag(path: str) -> str:
 
 def write_cards(created: list[tuple[str, str, str]], args) -> Path:
     """One A4 page per 10 cards (2 x 5), each card 52 x 92 mm, ready to cut."""
-    logos = brand_strip(args.event) if args.style == "branded" else logo_tags(args.logo)
+    logos = logo_tags(args.logo)
     cards = [
         f"""<div class="card">
   {top_bar(args, name)}
@@ -247,18 +245,15 @@ MODEL_ID=qwen/qwen3.5-9b</pre>
   .logos {{ position: absolute; left: 3.5mm; right: 3.5mm; bottom: 2.5mm; height: 8mm; display: flex; justify-content: space-around; align-items: center; }}
   .logos ~ .key, .key:has(~ .logos) {{ bottom: 12mm; }}
   .logos img {{ max-height: 8mm; max-width: 27mm; }}
-  .brand {{ justify-content: flex-start; gap: 2.5mm; height: 9mm; }}
-  .brand .spacer {{ flex: 1; }}
-  .top {{ align-items: center; }}
-  .toplogos {{ display: flex; align-items: center; gap: 3.5mm; height: 5mm; }}
-  .toplogos img {{ height: 5mm; width: auto; max-width: 21mm; object-fit: contain; }}
-  .toplogos img:only-child {{ height: 6mm; max-width: 34mm; }}
-  .label {{ font-family: 'Oswald', 'Arial Narrow', Impact, sans-serif; font-weight: 700; text-transform: uppercase; font-size: 10pt; color: #1C1F4A; align-self: flex-end; }}
+  .brandtop {{ align-items: flex-start; height: 8mm; margin-bottom: 1.5mm; }}
+  .brandtop ~ .body .qr svg {{ width: 21mm; height: 21mm; }}
+  .label {{ font-family: 'Oswald', 'Arial Narrow', Impact, sans-serif; font-weight: 700; text-transform: uppercase; font-size: 10pt; line-height: 1.1; color: #1C1F4A; text-align: right; }}
+  .label small {{ font-family: -apple-system, Helvetica, Arial, sans-serif; font-weight: 400; text-transform: none; font-size: 8.5pt; }}
   .mark {{ font-family: 'Oswald', 'Arial Narrow', Impact, sans-serif; font-weight: 700; text-transform: uppercase;
-           font-size: 11.5pt; line-height: 0.88; color: #1C1F4A; transform: rotate(-5deg); transform-origin: left center; }}
+           font-size: 11pt; line-height: 0.88; color: #1C1F4A; transform: rotate(-5deg); transform-origin: left center; margin-top: 1mm; }}
   .mark span {{ color: #7C70CF; }}
   .mark small {{ font-size: 8pt; color: #7C70CF; }}
-  .key:has(~ .brand) {{ bottom: 12.3mm; }}
+  .brandtop ~ .key {{ bottom: 11.2mm; }}
   @media print {{ * {{ -webkit-print-color-adjust: exact; print-color-adjust: exact; }} }}
 </style>
 {pages}
@@ -298,7 +293,7 @@ def main():
         sp.add_argument("--logo", nargs="+", help="one or more png/svg/jpg files along the bottom of every card")
         sp.add_argument("--event", default=EVENT, help=f"event name in the card heading (default: {EVENT})")
         sp.add_argument("--style", choices=["sponsors", "branded"], default="sponsors",
-                        help="sponsors: logos in a row along the bottom; branded: event title left, logos right")
+                        help="sponsors: text heading; branded: the flyer's rotated event title on top. Logos go along the bottom in both")
     k.set_defaults(fn=cards)
     sub.add_parser("list", help="usage per key and in total").set_defaults(fn=list_keys)
     sub.add_parser("disable", help="disable all keys (reversible in the dashboard)").set_defaults(fn=disable)
