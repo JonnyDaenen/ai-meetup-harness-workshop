@@ -183,18 +183,22 @@ def logo_tags(paths: list[str] | None) -> str:
     return f'<div class="logos">{"".join(logo_tag(p) for p in paths)}</div>' if paths else ""
 
 
-def brand_strip(event: str, paths: list[str] | None) -> str:
-    """Branded style: the event as the flyer's rotated title on the left, logos on the right."""
+def brand_strip(event: str) -> str:
+    """Branded style, bottom: the event as the flyer's rotated title on the left, "workshop key" on the right."""
     name, _, number = event.rpartition(" #")
     *first, last = (name or event).split()
     num = f' <small>#{html.escape(number)}</small>' if number else ""
     mark = f'<div class="mark">{html.escape(" ".join(first))}<br><span>{html.escape(last)}</span>{num}</div>'
-    logos = "".join(logo_tag(p) for p in paths or [])
-    return f'<div class="logos brand">{mark}<div class="spacer"></div>{logos}</div>'
+    return f'<div class="logos brand">{mark}<div class="spacer"></div><div class="label">Workshop key</div></div>'
 
 
-def heading(args) -> str:
-    return "Workshop key" if args.style == "branded" else f"{args.event} · workshop key"
+def top_bar(args, name: str) -> str:
+    """Branded style puts the logos in the top bar; the sponsors style a text heading."""
+    if args.style == "branded":
+        left = f'<div class="toplogos">{"".join(logo_tag(p) for p in args.logo or [])}</div>'
+    else:
+        left = f"<b>{html.escape(args.event)} · workshop key</b>"
+    return f'<div class="top">{left}<span>{html.escape(name)}</span></div>'
 
 
 def logo_tag(path: str) -> str:
@@ -205,10 +209,10 @@ def logo_tag(path: str) -> str:
 
 def write_cards(created: list[tuple[str, str, str]], args) -> Path:
     """One A4 page per 10 cards (2 x 5), each card 52 x 92 mm, ready to cut."""
-    logos = brand_strip(args.event, args.logo) if args.style == "branded" else logo_tags(args.logo)
+    logos = brand_strip(args.event) if args.style == "branded" else logo_tags(args.logo)
     cards = [
         f"""<div class="card">
-  <div class="top"><b>{html.escape(heading(args))}</b><span>{html.escape(name)}</span></div>
+  {top_bar(args, name)}
   <div class="body">
     <div class="qr">{qr_svg(key)}</div>
     <div>
@@ -245,12 +249,16 @@ MODEL_ID=qwen/qwen3.5-9b</pre>
   .logos img {{ max-height: 8mm; max-width: 27mm; }}
   .brand {{ justify-content: flex-start; gap: 2.5mm; height: 9mm; }}
   .brand .spacer {{ flex: 1; }}
-  .brand img {{ max-height: 6.5mm; max-width: 34mm; }}
+  .top {{ align-items: center; }}
+  .toplogos {{ display: flex; align-items: center; gap: 3.5mm; height: 5mm; }}
+  .toplogos img {{ height: 5mm; width: auto; max-width: 21mm; object-fit: contain; }}
+  .toplogos img:only-child {{ height: 6mm; max-width: 34mm; }}
+  .label {{ font-family: 'Oswald', 'Arial Narrow', Impact, sans-serif; font-weight: 700; text-transform: uppercase; font-size: 10pt; color: #1C1F4A; align-self: flex-end; }}
   .mark {{ font-family: 'Oswald', 'Arial Narrow', Impact, sans-serif; font-weight: 700; text-transform: uppercase;
            font-size: 11.5pt; line-height: 0.88; color: #1C1F4A; transform: rotate(-5deg); transform-origin: left center; }}
   .mark span {{ color: #7C70CF; }}
   .mark small {{ font-size: 8pt; color: #7C70CF; }}
-  .key:has(~ .brand) {{ bottom: 12.8mm; }}
+  .key:has(~ .brand) {{ bottom: 12.3mm; }}
   @media print {{ * {{ -webkit-print-color-adjust: exact; print-color-adjust: exact; }} }}
 </style>
 {pages}
