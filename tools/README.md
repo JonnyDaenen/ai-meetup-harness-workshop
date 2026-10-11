@@ -31,6 +31,12 @@ Rebuild the sheet without creating keys, e.g. with the sponsor logos along the b
 uv run tools/openrouter_keys.py cards --logo tools/out/logos/corda-campus.svg tools/out/logos/dataminded.svg tools/out/logos/trendminer.svg
 ```
 
+Or the branded style: the event name as the flyer's rotated title on the left, your logo on the right (written to `meetup-cards-branded.html`, so both versions can exist side by side):
+
+```bash
+uv run tools/openrouter_keys.py cards --style branded --logo tools/out/logos/dataminded.svg
+```
+
 Logos can be png, svg or jpg; keep them in `tools/out/logos/` so they stay out of git. The heading reads "<event> · workshop key": set `EVENT` at the top of the script or pass `--event "..."`. Each key is $1, expiring 14 Oct 2026 at midnight (`--limit`, `--expires` to change). Need more on the night? `create 20 --start 81 ...`.
 
 **During and after**

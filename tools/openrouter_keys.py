@@ -183,6 +183,20 @@ def logo_tags(paths: list[str] | None) -> str:
     return f'<div class="logos">{"".join(logo_tag(p) for p in paths)}</div>' if paths else ""
 
 
+def brand_strip(event: str, paths: list[str] | None) -> str:
+    """Branded style: the event as the flyer's rotated title on the left, logos on the right."""
+    name, _, number = event.rpartition(" #")
+    *first, last = (name or event).split()
+    num = f' <small>#{html.escape(number)}</small>' if number else ""
+    mark = f'<div class="mark">{html.escape(" ".join(first))}<br><span>{html.escape(last)}</span>{num}</div>'
+    logos = "".join(logo_tag(p) for p in paths or [])
+    return f'<div class="logos brand">{mark}<div class="spacer"></div>{logos}</div>'
+
+
+def heading(args) -> str:
+    return "Workshop key" if args.style == "branded" else f"{args.event} · workshop key"
+
+
 def logo_tag(path: str) -> str:
     data = Path(path).read_bytes()
     mime = {".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp"}[Path(path).suffix.lower()]
@@ -191,10 +205,10 @@ def logo_tag(path: str) -> str:
 
 def write_cards(created: list[tuple[str, str, str]], args) -> Path:
     """One A4 page per 10 cards (2 x 5), each card 52 x 92 mm, ready to cut."""
-    logos = logo_tags(getattr(args, "logo", None))
+    logos = brand_strip(args.event, args.logo) if args.style == "branded" else logo_tags(args.logo)
     cards = [
         f"""<div class="card">
-  <div class="top"><b>{html.escape(args.event)} · workshop key</b><span>{html.escape(name)}</span></div>
+  <div class="top"><b>{html.escape(heading(args))}</b><span>{html.escape(name)}</span></div>
   <div class="body">
     <div class="qr">{qr_svg(key)}</div>
     <div>
@@ -212,6 +226,7 @@ MODEL_ID=qwen/qwen3.5-9b</pre>
     ]
     pages = "\n".join(f'<div class="page">{"".join(cards[i:i + 10])}</div>' for i in range(0, len(cards), 10))
     page = f"""<!doctype html><meta charset="utf-8"><title>Workshop keys</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@700&display=swap">
 <style>
   @page {{ size: A4; margin: 10mm; }}
   body {{ font-family: -apple-system, Helvetica, Arial, sans-serif; color: #1C1F4A; margin: 0; }}
@@ -228,11 +243,20 @@ MODEL_ID=qwen/qwen3.5-9b</pre>
   .logos {{ position: absolute; left: 3.5mm; right: 3.5mm; bottom: 2.5mm; height: 8mm; display: flex; justify-content: space-around; align-items: center; }}
   .logos ~ .key, .key:has(~ .logos) {{ bottom: 12mm; }}
   .logos img {{ max-height: 8mm; max-width: 27mm; }}
+  .brand {{ justify-content: flex-start; gap: 2.5mm; height: 9mm; }}
+  .brand .spacer {{ flex: 1; }}
+  .brand img {{ max-height: 6.5mm; max-width: 34mm; }}
+  .mark {{ font-family: 'Oswald', 'Arial Narrow', Impact, sans-serif; font-weight: 700; text-transform: uppercase;
+           font-size: 11.5pt; line-height: 0.88; color: #1C1F4A; transform: rotate(-5deg); transform-origin: left center; }}
+  .mark span {{ color: #7C70CF; }}
+  .mark small {{ font-size: 8pt; color: #7C70CF; }}
+  .key:has(~ .brand) {{ bottom: 12.8mm; }}
   @media print {{ * {{ -webkit-print-color-adjust: exact; print-color-adjust: exact; }} }}
 </style>
 {pages}
 """
-    path = OUT / f"{args.prefix.rstrip('-')}-cards.html"
+    suffix = "" if args.style == "sponsors" else f"-{args.style}"
+    path = OUT / f"{args.prefix.rstrip('-')}-cards{suffix}.html"
     path.write_text(page)
     return path
 
@@ -265,6 +289,8 @@ def main():
     for sp in (c, k := sub.add_parser("cards", help="rebuild the printable cards from the saved CSV")):
         sp.add_argument("--logo", nargs="+", help="one or more png/svg/jpg files along the bottom of every card")
         sp.add_argument("--event", default=EVENT, help=f"event name in the card heading (default: {EVENT})")
+        sp.add_argument("--style", choices=["sponsors", "branded"], default="sponsors",
+                        help="sponsors: logos in a row along the bottom; branded: event title left, logos right")
     k.set_defaults(fn=cards)
     sub.add_parser("list", help="usage per key and in total").set_defaults(fn=list_keys)
     sub.add_parser("disable", help="disable all keys (reversible in the dashboard)").set_defaults(fn=disable)
