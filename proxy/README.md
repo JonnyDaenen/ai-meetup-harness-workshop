@@ -14,7 +14,12 @@ uv run mitmweb --mode reverse:http://127.0.0.1:1234 -p 8080 \
   --set store_streamed_bodies=true --set stream_large_bodies=0 --set http2=false \
   -s viewer.py -s sse_clean.py
 
-# remote model (Anthropic); swap in another provider's base URL if you use one
+# workshop key (OpenRouter); set ANTHROPIC_BASE_URL=http://127.0.0.1:8080/api
+uv run mitmweb --mode reverse:https://openrouter.ai -p 8080 \
+  --set store_streamed_bodies=true --set stream_large_bodies=0 --set http2=false \
+  -s viewer.py -s sse_clean.py
+
+# your own Anthropic key; swap in another provider's base URL if you use one
 uv run mitmweb --mode reverse:https://api.anthropic.com -p 8080 \
   --set store_streamed_bodies=true --set stream_large_bodies=0 --set http2=false \
   -s viewer.py -s sse_clean.py
@@ -22,7 +27,7 @@ uv run mitmweb --mode reverse:https://api.anthropic.com -p 8080 \
 
 Then:
 
-- Point the agent at the proxy: `ANTHROPIC_BASE_URL=http://127.0.0.1:8080` (the default in `.env.example`).
+- Point the agent at the proxy: `ANTHROPIC_BASE_URL=http://127.0.0.1:8080` (the default in `.env.example`; add `/api` for OpenRouter).
 - Open the **call viewer** at <http://127.0.0.1:8082>: every model call as readable blocks, live.
 - The full mitmweb UI is still at <http://127.0.0.1:8081>, for headers and everything else.
 

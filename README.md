@@ -15,7 +15,7 @@ Hands-on workshop. In about an hour you will:
 flowchart LR
     you(["You"]) --> agent["Agent (harness)"]
     agent -- "HTTP /v1/messages" --> proxy["Proxy :8080<br/>call viewer :8082"]
-    proxy --> model[("Model server<br/>LM Studio :1234<br/>or api.anthropic.com")]
+    proxy --> model[("Model server<br/>LM Studio :1234<br/>or a remote API")]
     agent -- "tool_use" --> tools["Run tool<br/>bash, read_file, ..."]
     tools -- "tool_result" --> agent
 ```
@@ -50,7 +50,8 @@ J5 follows the first lessons of [shareAI-lab/learn-claude-code](https://github.c
 - [uv](https://docs.astral.sh/uv/getting-started/installation/) (it installs the right Python for you)
 - **One** model:
   - **Local:** [LM Studio](https://lmstudio.ai) with `qwen/qwen3.5-9b` (about 6.5 GB download, 16 GB RAM recommended). See [docs/local-model.md](docs/local-model.md). **Download the model before the workshop**, because venue Wi-Fi won't cope.
-  - **Remote:** an Anthropic API key or a key for a compatible provider. See [docs/remote-model.md](docs/remote-model.md).
+  - **No laptop model?** At the meetup you get a **workshop key** (OpenRouter) on a card: the same model, on someone else's GPU. See [docs/remote-model.md](docs/remote-model.md#workshop-key-openrouter).
+  - **Remote:** your own Anthropic API key or a key for a compatible provider. See [docs/remote-model.md](docs/remote-model.md).
 - Optional: [Claude Code](https://docs.claude.com/en/docs/claude-code), to inspect a production harness
 
 ## Quickstart (about 10 minutes)
@@ -58,10 +59,10 @@ J5 follows the first lessons of [shareAI-lab/learn-claude-code](https://github.c
 ```bash
 git clone https://github.com/JonnyDaenen/ai-meetup-harness-workshop.git
 cd ai-meetup-harness-workshop
-cp .env.example .env          # defaults to LM Studio through the proxy; edit for remote
+cp .env.example .env          # defaults to LM Studio through the proxy; workshop key = block B
 ```
 
-**Terminal 1: the model.** Start LM Studio's server and load the model (see [docs/local-model.md](docs/local-model.md)):
+**Terminal 1: the model** (skip this with a workshop key). Start LM Studio's server and load the model (see [docs/local-model.md](docs/local-model.md)):
 
 ```bash
 lms server start
@@ -77,7 +78,7 @@ uv run mitmweb --mode reverse:http://127.0.0.1:1234 -p 8080 \
   -s viewer.py -s sse_clean.py
 ```
 
-Open the call viewer at <http://127.0.0.1:8082> to watch every model call live (the full mitmweb UI is at <http://127.0.0.1:8081>). For a remote model, use `--mode reverse:https://api.anthropic.com` instead.
+Open the call viewer at <http://127.0.0.1:8082> to watch every model call live (the full mitmweb UI is at <http://127.0.0.1:8081>). With the workshop key, use `--mode reverse:https://openrouter.ai` instead; with your own Anthropic key, `--mode reverse:https://api.anthropic.com`.
 
 **Terminal 3: the agent.**
 
@@ -95,6 +96,8 @@ Say hi. Every request now shows up in mitmweb. Next, go to [exercises/](exercise
 | J5 ignores your `.env` (e.g. it calls api.anthropic.com instead of the proxy) | Variables already exported in your shell win over `.env`. Check `env \| grep ANTHROPIC` and `unset ANTHROPIC_BASE_URL ANTHROPIC_API_KEY` |
 | `Connection refused` on :8080 | The proxy isn't running (terminal 2) |
 | Proxy shows `502 Bad Gateway` | The model server isn't running, or the `--mode reverse:` URL is wrong |
-| `authentication_error` from Anthropic | `ANTHROPIC_API_KEY` is missing or wrong in `.env` |
+| `authentication_error` or `401` | `ANTHROPIC_API_KEY` is missing or wrong in `.env` |
+| `404` on every call with the workshop key | `ANTHROPIC_BASE_URL` must end in `/api` (`http://127.0.0.1:8080/api`). A 404 on only `count_tokens` is normal |
+| `402` with the workshop key | Your key reached its spending limit. Ask for a new card |
 | The local model is very slow or the laptop starts swapping | Use a smaller model, e.g. `mistralai/ministral-3-3b`, or switch to the remote path |
 | The model never calls tools | Small local models are unreliable at tool use. Try `google/gemma-4-26b-a4b` or a remote model |

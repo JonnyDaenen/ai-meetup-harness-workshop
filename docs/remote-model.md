@@ -1,6 +1,36 @@
 # Remote model via an API
 
-Faster and much better at tool calling than a laptop-sized model. It costs a little: the whole workshop is a few cents to a dollar with a mid-size model.
+No model on your laptop? Use the workshop key below. Remote models are faster and much better at tool calling than a laptop-sized model, and cost a little: the whole workshop is a few cents to a dollar with a mid-size model.
+
+## Workshop key (OpenRouter)
+
+At the meetup you get a key card with an [OpenRouter](https://openrouter.ai) key. OpenRouter speaks the same Messages API as Anthropic, so J5 works unchanged. The key has a small spending limit, only works with the workshop models, and stops working after the meetup.
+
+1. In `.env`, use block **B**:
+   ```env
+   ANTHROPIC_BASE_URL=http://127.0.0.1:8080/api
+   ANTHROPIC_API_KEY=sk-or-v1-...
+   MODEL_ID=qwen/qwen3.5-9b
+   ```
+   Note the `/api` at the end: OpenRouter's Messages API lives under `https://openrouter.ai/api`.
+2. Start the proxy pointing at OpenRouter:
+   ```bash
+   cd proxy
+   uv run mitmweb --mode reverse:https://openrouter.ai -p 8080 \
+     --set store_streamed_bodies=true --set stream_large_bodies=0 --set http2=false \
+     -s viewer.py -s sse_clean.py
+   ```
+
+Workshop models:
+
+| `MODEL_ID` | Why | Price per million tokens (in / out) |
+|---|---|---|
+| `qwen/qwen3.5-9b` | **Default.** The same model as the local path, on someone else's GPU | $0.10 / $0.15 |
+| `anthropic/claude-haiku-5.5` | Compare with a Claude model | $0.10 / $0.50 |
+
+An evening of exercises costs about $0.03 per person with either model. Two things you'll notice in the proxy:
+- `count_tokens` calls come back as **404**: OpenRouter doesn't offer that endpoint. J5 ignores the error.
+- J5's cost summary is far too high: it calculates with Sonnet prices. Compare it with the real `usage` in the responses (exercise 01).
 
 ## Anthropic
 

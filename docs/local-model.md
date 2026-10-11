@@ -23,7 +23,7 @@ LM Studio serves an **Anthropic-compatible** API (`POST /v1/messages`), so the a
      -H 'content-type: application/json' -H 'x-api-key: local' -H 'anthropic-version: 2023-06-01' \
      -d '{"model":"qwen/qwen3.5-9b","max_tokens":50,"messages":[{"role":"user","content":"Say hi"}]}'
    ```
-5. In `.env`, use block **A** (through the proxy) or **B** (direct) from `.env.example`.
+5. In `.env`, use block **A** (through the proxy) or **E** (direct) from `.env.example`.
 
 When you're done, `lms unload --all` and `lms server stop` give the memory back.
 
