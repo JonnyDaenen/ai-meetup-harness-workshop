@@ -246,7 +246,7 @@ def write_cards(created: list[tuple[str, str, str]], args) -> Path:
       <pre>ANTHROPIC_BASE_URL=http://127.0.0.1:8080/api
 ANTHROPIC_API_KEY=&lt;this key&gt;
 MODEL_ID=qwen/qwen3.5-9b</pre>
-      <p class="small">Proxy: <code>--mode reverse:https://openrouter.ai</code><br>${float(limit):g} limit · stops working after the meetup</p>
+      <p class="small">Setup: <code>docs/remote-model.md</code> → Workshop key<br>${float(limit):g} limit · stops working after the meetup</p>
     </div>
   </div>
   <code class="key">{html.escape(key)}</code>
