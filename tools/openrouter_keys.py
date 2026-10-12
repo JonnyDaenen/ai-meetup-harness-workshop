@@ -29,7 +29,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 API = "https://openrouter.ai/api/v1"
-WORKSPACE = "2026-10-13-agentic-ai-meetup-002"  # slug or id; the keys and their guardrail live here
+WORKSPACE = "d2ff83ee-d311-468a-93ac-a9a1194f4ab5"  # slug or id; the keys and their guardrail live here
 MODELS = ["qwen/qwen3.5-9b", "anthropic/claude-haiku-5.5"]
 EVENT = "Agentic AI Meetup #002"  # card heading: "<EVENT> · workshop key"
 ROOT = Path(__file__).resolve().parent.parent

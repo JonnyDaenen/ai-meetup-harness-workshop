@@ -16,7 +16,7 @@ Budget: about $0.03 per participant for an evening; 70 people stay well under $1
   OPENROUTER_MANAGEMENT_KEY=sk-or-v1-...
   ```
 - [ ] Delete the auto-created **Default key** in the Default Workspace if you don't use it
-- [ ] Set `WORKSPACE` at the top of [`tools/openrouter_keys.py`](../tools/openrouter_keys.py) to the workspace slug
+- [ ] Set `WORKSPACE` at the top of [`tools/openrouter_keys.py`](../tools/openrouter_keys.py) to the workspace slug or id
 
 Leave ZDR, prompt-injection and sensitive-info detection **off**: they can exclude the providers serving the workshop model or trip on workshop prompts.
 

@@ -71,7 +71,7 @@ It keeps the last 300 calls in memory; **Clear** empties it. Use another port wi
 
 ## Sample captures: [`captures/`](captures/)
 
-Real Claude Code requests, captured with this proxy. They're scrubbed: device, account and session IDs, billing hashes, home paths and the git user name are replaced by placeholders.
+Real Claude Code requests, captured with this proxy. They're scrubbed: device, account and session IDs, billing hashes, home paths and the git user name are replaced by placeholders. The prompts and tool descriptions in them are Claude Code's, © Anthropic, and not covered by this repo's license.
 
 | File | What to look for |
 |---|---|

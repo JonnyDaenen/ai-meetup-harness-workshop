@@ -103,3 +103,7 @@ Say hi. Every request now shows up in mitmweb. Next, go to [exercises/](exercise
 | `402` with the workshop key | Your key reached its spending limit. Ask for a new card |
 | The local model is very slow or the laptop starts swapping | Use a smaller model, e.g. `mistralai/ministral-3-3b`, or switch to the remote path |
 | The model never calls tools | Small local models are unreliable at tool use. Try `google/gemma-4-26b-a4b` or a remote model |
+
+## License
+
+[MIT](LICENSE). J5 builds on [shareAI-lab/learn-claude-code](https://github.com/shareAI-lab/learn-claude-code) (MIT). The sample captures in [`proxy/captures/`](proxy/captures/) contain Claude Code's prompts, which are Anthropic's and not covered by this license.
