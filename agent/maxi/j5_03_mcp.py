@@ -1,0 +1,395 @@
+
+import asyncio
+import itertools
+import json
+import logging
+import os
+import subprocess
+import sys
+import threading
+import time
+import uuid
+from contextlib import contextmanager
+from datetime import datetime
+from pathlib import Path
+
+from anthropic import Anthropic
+from dotenv import load_dotenv
+from mcp import ClientSession
+from mcp.client.streamable_http import streamable_http_client
+
+load_dotenv(override=False)
+
+# --- colours & logging ---
+
+_GREY   = "\033[2;37m"
+_PURPLE = "\033[35m"
+_YELLOW = "\033[33m"
+_BLUE   = "\033[1;34m"
+_CYAN   = "\033[36m"
+_RED    = "\033[1;31m"
+_GREEN  = "\033[1;32m"
+_ITALIC = "\033[3m"
+_RESET  = "\033[0m"
+
+
+def _cprint(text, color):
+    print(f"{color}{text}{_RESET}")
+
+
+class _GreyFormatter(logging.Formatter):
+    def format(self, record):
+        return f"{_GREY}{super().format(record)}{_RESET}"
+
+_handler = logging.StreamHandler()
+_handler.setFormatter(_GreyFormatter("%(message)s"))
+log = logging.getLogger("j5")
+log.addHandler(_handler)
+log.setLevel(logging.DEBUG if os.getenv("DEBUG") else logging.WARNING)
+
+# --- client setup ---
+
+# When using a local proxy, drop the auth token so it doesn't conflict.
+if os.getenv("ANTHROPIC_BASE_URL"):
+    os.environ.pop("ANTHROPIC_AUTH_TOKEN", None)
+
+client = Anthropic(base_url=os.getenv("ANTHROPIC_BASE_URL"))
+
+log.debug("ANTHROPIC_BASE_URL: %s", os.getenv("ANTHROPIC_BASE_URL"))
+log.debug("MODEL_ID: %s", os.getenv("MODEL_ID"))
+
+MODEL = os.environ["MODEL_ID"]
+
+# Any MCP server that speaks streamable HTTP. J5 sends no credentials, so the server must not need any.
+MCP_URL = os.getenv("MCP_URL", "http://localhost:8000/mcp")
+
+SYSTEM = f"You are J5, an agent at {os.getcwd()}. Use the MCP tools to look things up and bash for local work. Act, don't explain. Never guess what a tool can tell you. Be brief, always answer in SMS style super brief, and sign off with - J5."
+
+OUTPUT_TOKEN_COST_PER_1M = 15
+INPUT_TOKEN_COST_PER_1M = 3
+
+
+# -- The dispatch map: bash is ours, the MCP server's tools are added at startup (see main) --
+TOOL_HANDLERS = {
+    "bash": lambda **kw: run_bash(kw["command"]),
+}
+
+TOOLS = [
+    {"name": "bash", "description": "Run a shell command.",
+     "input_schema": {"type": "object", "properties": {"command": {"type": "string"}}, "required": ["command"]}},
+]
+
+
+
+# --- session / history ---
+
+total_input_tokens = 0
+total_output_tokens = 0
+num_message_calls = 0
+total_elapsed = 0.0
+
+SESSION_ID = str(uuid.uuid4())
+
+_now = datetime.now()
+# Each session gets its own folder: .j5/history/YYYY-MM-DD/HHMMSS/<uuid>/
+_session_dir = (
+    Path(".j5") / "history"
+    / _now.strftime("%Y-%m-%d")
+    / _now.strftime("%H%M%S")
+    / SESSION_ID
+)
+_session_dir.mkdir(parents=True, exist_ok=True)
+_call_counter = 0
+
+
+def _log_call(messages, response):
+    global _call_counter
+    _call_counter += 1
+    path = _session_dir / f"call{_call_counter:04d}.log"
+    payload = {
+        "messages": [
+            m if isinstance(m, dict) else m.model_dump()
+            for m in messages
+        ],
+        "response": response.model_dump(),
+    }
+    path.write_text(json.dumps(payload, indent=2, default=str))
+
+
+# --- helpers ---
+
+def calculate_tokens(messages) -> tuple[int, int]:
+    """Returns (message_tokens, system_tokens) — used for debug logging only."""
+    try:
+        input_token_count = client.messages.count_tokens(
+            model=MODEL, messages=messages
+        ).input_tokens or 0
+        system_token_count = (client.messages.count_tokens(
+            model=MODEL, system=SYSTEM, messages=messages
+        ).input_tokens or 0) - input_token_count
+    except Exception:
+        input_token_count, system_token_count = 0, 0
+    return input_token_count, system_token_count
+
+
+# --- MCP ---
+
+class MCPBridge:
+    """Keeps one MCP session open on a background event loop, so the (sync) agent loop can call it."""
+
+    def __init__(self, url: str):
+        self._loop = asyncio.new_event_loop()
+        threading.Thread(target=self._loop.run_forever, daemon=True).start()
+        ready = threading.Event()
+        self._serving = asyncio.run_coroutine_threadsafe(self._serve(url, ready), self._loop)
+        ready.wait(timeout=30)
+        if self._serving.done():
+            self._serving.result()  # re-raise the connection error
+        if not ready.is_set():
+            raise TimeoutError(f"no answer from {url}")
+
+    async def _serve(self, url, ready):
+        self._stop = asyncio.Event()
+        async with streamable_http_client(url) as (read, write):
+            async with ClientSession(read, write) as session:
+                await session.initialize()
+                self.session = session
+                ready.set()
+                await self._stop.wait()
+
+    def _run(self, coro):
+        return asyncio.run_coroutine_threadsafe(coro, self._loop).result()
+
+    def list_tools(self):
+        return self._run(self.session.list_tools()).tools
+
+    def call_tool(self, name: str, args: dict):
+        return self._run(self.session.call_tool(name, args))
+
+    def close(self):
+        self._loop.call_soon_threadsafe(self._stop.set)
+        try:
+            self._serving.result(timeout=5)
+        except Exception:
+            pass
+
+
+def _result_text(result) -> str:
+    """Flatten an MCP tool result into the plain text a tool_result carries."""
+    parts = [c.text if c.type == "text" else json.dumps(c.model_dump(), default=str) for c in result.content]
+    if not parts and result.structured_content:
+        parts = [json.dumps(result.structured_content, default=str)]
+    out = "\n".join(parts) or "(no output)"
+    return (f"Error: {out}" if result.is_error else out)[:50000]  # cap at 50k to avoid overwhelming the model
+
+
+def load_mcp_tools(mcp: MCPBridge):
+    """Turn every MCP tool into an Anthropic tool definition plus a handler that calls the server."""
+    for tool in mcp.list_tools():
+        TOOLS.append({"name": tool.name, "description": tool.description or "", "input_schema": tool.input_schema})
+        TOOL_HANDLERS[tool.name] = lambda _name=tool.name, **kw: run_mcp(mcp, _name, kw)
+
+
+def run_mcp(mcp: MCPBridge, name: str, args: dict) -> str:
+    try:
+        return _result_text(mcp.call_tool(name, args))
+    except Exception as e:
+        return f"Error: {e}"
+
+
+# --- tools ---
+def _confirm_tool(name: str, inputs: dict) -> bool:
+    """Ask the user to approve a tool call. Returns True if approved. Skip with AUTO_APPROVE=1."""
+    if os.getenv("AUTO_APPROVE"):
+        return True
+    answer = input(f"{_CYAN}Allow {name}? (y/n) {_RESET}").strip().lower()
+    return answer == "y"
+
+
+def run_bash(command: str) -> str:
+    # Substring blocklist — not exhaustive, just a basic safety net.
+    dangerous = ["rm -rf", "rm -rf /", "sudo", "shutdown", "reboot", "> /dev/", "restart"]
+    if any(d in command for d in dangerous):
+        return "Error: Dangerous command blocked"
+    try:
+        r = subprocess.run(
+            command,
+            shell=True,        # needed for pipes, redirection, etc.
+            cwd=os.getcwd(),
+            capture_output=True,
+            text=True,
+            timeout=120,       # prevents the agent hanging indefinitely
+        )
+        out = (r.stdout + r.stderr).strip()
+        return out[:50000] if out else "(no output)"  # cap at 50k to avoid overwhelming the model
+    except subprocess.TimeoutExpired:
+        return "Error: Timeout (120s)"
+
+
+# --- agent loop ---
+
+def _spin(stop_event, msg="J5 is thinking"):
+    frames = itertools.cycle(["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"])
+    while not stop_event.is_set():
+        sys.stdout.write(f"\r{_GREY}{next(frames)} {msg}...{_RESET}")
+        sys.stdout.flush()
+        time.sleep(0.1)
+    sys.stdout.write("\r" + " " * (len(msg) + 10) + "\r")
+    sys.stdout.flush()
+
+def print_token_usage():
+    total_input_cost = (total_input_tokens / 1_000_000) * INPUT_TOKEN_COST_PER_1M
+    total_output_cost = (total_output_tokens / 1_000_000) * OUTPUT_TOKEN_COST_PER_1M
+    total_cost = total_input_cost + total_output_cost
+    _cprint(f"Total input tokens: {total_input_tokens} ({total_input_cost:.6f}$)", _BLUE)
+    _cprint(f"Total output tokens: {total_output_tokens} ({total_output_cost:.6f}$)", _BLUE)
+    _cprint(f"Number of message calls: {num_message_calls}", _BLUE)
+    _cprint(f"Estimated total cost: ${total_cost:.6f}", _BLUE)
+    _cprint(f"Total answer time: {total_elapsed:.2f}s", _BLUE)
+    if num_message_calls > 0:
+        _cprint(f"Average time per call: {total_elapsed / num_message_calls:.2f}s", _BLUE)
+
+def _track_usage(response):
+    global total_input_tokens, total_output_tokens, num_message_calls
+    total_input_tokens += response.usage.input_tokens
+    total_output_tokens += response.usage.output_tokens
+    num_message_calls += 1
+    log.debug("usage: %s", vars(response.usage))
+    log.debug(f"running total — input: {total_input_tokens}, output: {total_output_tokens}, calls: {num_message_calls}")
+    log.debug(f"running cost: ${(total_input_tokens / 1_000_000) * INPUT_TOKEN_COST_PER_1M + (total_output_tokens / 1_000_000) * OUTPUT_TOKEN_COST_PER_1M:.6f}")
+
+
+@contextmanager
+def _spinner(msg="J5 is thinking"):
+    """Spin only while we wait (for the model or a tool), so it never draws over prompts or output."""
+    if log.isEnabledFor(logging.DEBUG):
+        yield; return
+    stop = threading.Event()
+    t = threading.Thread(target=_spin, args=(stop, msg))
+    t.start()
+    try:
+        yield
+    finally:  # stop the spinner even if the call fails
+        stop.set()
+        t.join()
+
+
+def _short(value, limit=160) -> str:
+    text = str(value).replace("\n", " ")
+    return text if len(text) <= limit else text[:limit] + "…"
+
+
+def agent_loop(messages: list) -> float:
+    """The core pattern: call the model, execute tools, repeat until done."""
+    t0 = time.perf_counter()
+
+    while True:
+        log.debug("messages: %s", messages)
+        log.debug("estimated tokens: %s", calculate_tokens(messages))
+
+        with _spinner():
+            response = client.messages.create(
+                model=MODEL,
+                system=SYSTEM,
+                tools=TOOLS,
+                max_tokens=8000,
+                messages=messages,
+            )
+        elapsed = time.perf_counter() - t0
+
+        _log_call(messages, response)
+        _track_usage(response)
+
+        messages.append({"role": "assistant", "content": response.content})
+
+        if response.stop_reason != "tool_use":
+            return elapsed
+
+        # Run each requested tool and feed results back as one user turn.
+        results = []
+        for block in response.content:
+            if block.type == "tool_use":
+                # Show bash in full (you approve what runs on your machine); shorten the rest.
+                shown = block.input.get("command") if block.name == "bash" else _short(block.input)
+                _cprint(f"$ {block.name} {shown}", _YELLOW)
+                if not _confirm_tool(block.name, block.input):
+                    output = "Error: Tool execution denied by user"
+                else:
+                    handler = TOOL_HANDLERS.get(block.name)
+                    with _spinner(f"Running {block.name}"):
+                        output = handler(**block.input) if handler else f"Unknown tool: {block.name}"
+                    _cprint(f"> {_short(output)}", _GREY)
+                results.append({"type": "tool_result", "tool_use_id": block.id, "content": output})
+        messages.append({"role": "user", "content": results})
+
+# --- chat loop ---
+
+def print_agent_response(history):
+    response_content = history[-1]["content"]
+    if isinstance(response_content, list):
+        for block in response_content:
+            if hasattr(block, "text"):
+                _cprint(f"🌪️ {block.text}", _PURPLE)
+
+
+def _exit():
+    _cprint("Exiting J5. Goodbye!", _RED)
+    print_token_usage()
+
+
+def _run_agent(history):
+    if log.isEnabledFor(logging.DEBUG):
+        _cprint("💬 J5 is thinking...", _GREY)
+    return agent_loop(history)
+
+
+def chat_loop():
+    # log startup and session id and model id
+    log.debug(f"Starting J5 session with ID: {SESSION_ID}")
+    log.debug(f"Using model: {MODEL}")
+
+    global total_elapsed
+    history = []  # full conversation, sent to the model on every turn
+    while True:
+        try:
+            query = input(f"{_CYAN}s03 >> {_RESET}")
+        except (EOFError, KeyboardInterrupt):
+            _exit(); break
+
+        clean_query = query.strip().lower()
+
+        # Built-in commands — handled before hitting the model.
+        if clean_query in ("q", "exit", "quit", "/quit", "/exit"):
+            _exit(); break
+        if clean_query == "":
+            _cprint("Please enter a command or query.", _ITALIC); continue
+        if clean_query == "/clear":
+            history.clear(); _cprint("History cleared.", _GREEN); continue
+        if clean_query == "/history":
+            _cprint("Conversation History:", _BLUE); print(history); continue
+        if clean_query == "/tools":
+            _cprint("Tools:", _BLUE); print("\n".join(f"- {t['name']}" for t in TOOLS)); continue
+
+        # Normal query — append to history, run the agent, print the response.
+        history.append({"role": "user", "content": query})
+        elapsed = _run_agent(history)
+        total_elapsed += elapsed
+        print()
+        print_agent_response(history)
+        _cprint(f"⏱ {elapsed:.2f}s", _GREY)
+        print()
+
+
+if __name__ == "__main__":
+    try:
+        mcp = MCPBridge(MCP_URL)
+    except Exception as e:
+        _cprint(f"Can't reach the MCP server at {MCP_URL}: {e!r}", _RED)
+        _cprint("Is the MCP server running? Set MCP_URL to point elsewhere.", _ITALIC)
+        sys.exit(1)
+    load_mcp_tools(mcp)
+    _cprint(f"Welcome to J5, the MCP agent! {len(TOOLS) - 1} tools from {MCP_URL}. Type /tools to list them.", _PURPLE)
+    try:
+        chat_loop()
+    finally:
+        mcp.close()
