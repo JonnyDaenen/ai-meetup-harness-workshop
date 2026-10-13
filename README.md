@@ -1,5 +1,7 @@
 # AI Meetup: Demystify the Agent Harness
 
+> **Presenting?** The live demo, step by step: [talk-runbook.md](talk-runbook.md).
+
 Hands-on workshop. In about an hour you will:
 
 1. **See what goes over the wire.** Put a proxy between an agent and the model server and read every request and response: system prompt, tool definitions, the full history, token usage.
@@ -37,7 +39,7 @@ flowchart TD
 | Folder | What | Own environment |
 |---|---|---|
 | [`proxy/`](proxy/) | mitmproxy in reverse mode, plus a live call viewer (`viewer.py`) and `sse_clean.py`, which makes streamed responses readable. Also scrubbed sample captures of Claude Code. | `proxy/pyproject.toml` (mitmproxy) |
-| [`agent/`](agent/) | **J5**, a minimal coding agent in three steps: chat only → bash tool → file tools | `agent/pyproject.toml` (anthropic, python-dotenv) |
+| [`agent/`](agent/) | **J5**, a minimal coding agent in three steps: chat only → bash tool → file tools. [`mini/`](agent/mini/) is just the loop; [`maxi/`](agent/maxi/) adds logging and token tracking | `agent/pyproject.toml` (anthropic, python-dotenv) |
 | [`docs/`](docs/) | Model setup: [local](docs/local-model.md), [remote](docs/remote-model.md), [Claude Code through the proxy](docs/claude-code.md), [workshop keys for organisers](docs/openrouter-setup.md) | |
 | [`exercises/`](exercises/) | Step-by-step exercises 00–06 | uses the agent's environment |
 | `.devcontainer/` | Optional sandbox, so the agent's bash tool can't touch your laptop | |
@@ -85,7 +87,7 @@ Open the call viewer at <http://127.0.0.1:8082> to watch every model call live (
 **Terminal 3: the agent.**
 
 ```bash
-uv run --project agent python agent/j5_00_vanilla.py
+uv run --project agent python agent/maxi/j5_00_vanilla.py
 ```
 
 Say hi. Every request now shows up in mitmweb. Next, go to [exercises/](exercises/).

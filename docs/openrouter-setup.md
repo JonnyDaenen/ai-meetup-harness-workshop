@@ -23,7 +23,7 @@ Leave ZDR, prompt-injection and sensitive-info detection **off**: they can exclu
 ## Before the event
 
 ```bash
-uv run tools/openrouter_keys.py guard       # only qwen/qwen3.5-9b and anthropic/claude-haiku-5.5
+uv run tools/openrouter_keys.py guard       # only the workshop models (MODELS in the script)
 uv run tools/openrouter_keys.py create 80   # $1 each, expire 14 Oct 23:59 (--limit, --expires)
 ```
 

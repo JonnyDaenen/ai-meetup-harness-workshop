@@ -2,7 +2,7 @@
 
 Goal: see why long agent sessions get slow and expensive, then fix it with compaction.
 
-Start from your exercise 04 agent or a copy of `agent/j5_02_tools.py`.
+Start from your exercise 04 agent or a copy of `agent/maxi/j5_02_tools.py`.
 
 ## Part A: measure
 

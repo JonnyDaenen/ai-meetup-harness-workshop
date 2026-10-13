@@ -29,11 +29,13 @@ When you're done, `lms unload --all` and `lms server stop` give the memory back.
 
 ### Which model?
 
-| Model | Size | RAM | Notes |
-|---|---|---|---|
-| `mistralai/ministral-3-3b` | 3 GB | 8 GB | Fast, but weak at tool calls. Fine for exercises 00–01. |
-| `qwen/qwen3.5-9b` | 6.5 GB | 16 GB | **Default.** Decent tool calling. |
-| `google/gemma-4-26b-a4b` | 18 GB | 32 GB | Best of the three. Only 4B parameters are active per token, so it's still quick. |
+| Model | Size | RAM | Notes | On the workshop key |
+|---|---|---|---|---|
+| `mistralai/ministral-3-3b` | 3 GB | 8 GB | Fast, but weak at tool calls. Fine for exercises 00–01. | `mistralai/ministral-3b-2512` |
+| `qwen/qwen3.5-9b` | 6.5 GB | 16 GB | **Default.** Decent tool calling. | `qwen/qwen3.5-9b` |
+| `google/gemma-4-26b-a4b` | 18 GB | 32 GB | Best of the three. Only 4B parameters are active per token, so it's still quick. | `google/gemma-4-26b-a4b-it` |
+
+The model ids differ between LM Studio and OpenRouter: use the last column with a [workshop key](remote-model.md#workshop-key-openrouter).
 
 The model plus its context must fit in RAM. If your laptop starts swapping, pick a smaller model or lower the context length in LM Studio.
 

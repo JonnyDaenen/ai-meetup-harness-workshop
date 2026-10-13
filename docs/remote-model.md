@@ -27,8 +27,11 @@ Workshop models:
 |---|---|---|
 | `qwen/qwen3.5-9b` | **Default.** The same model as the local path, on someone else's GPU | $0.10 / $0.15 |
 | `anthropic/claude-haiku-5.5` | Compare with a Claude model | $0.10 / $0.50 |
+| `google/gemma-4-26b-a4b-it` | The strongest of the [local models](local-model.md#which-model), without the 32 GB of RAM | $0.09 / $0.30 |
+| `mistralai/ministral-3b-2512` | The weak local model: watch it get tool calls wrong (exercises 02–03) | $0.10 / $0.10 |
+| `deepseek/deepseek-v4.1-flash` | A strong open-weights model that isn't Claude, through the same Messages API | $0.15 / $0.60 |
 
-An evening of exercises costs about $0.03 per person with either model. Two things you'll notice in the proxy:
+An evening of exercises costs a few cents per person with any of them; the key's $1 limit is the ceiling. Two things you'll notice in the proxy:
 - `count_tokens` calls come back as **404**: OpenRouter doesn't offer that endpoint. J5 ignores the error.
 - J5's cost summary is far too high: it calculates with Sonnet prices. Compare it with the real `usage` in the responses (exercise 01).
 

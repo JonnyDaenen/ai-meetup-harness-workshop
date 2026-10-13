@@ -30,7 +30,13 @@ from pathlib import Path
 
 API = "https://openrouter.ai/api/v1"
 WORKSPACE = "d2ff83ee-d311-468a-93ac-a9a1194f4ab5"  # slug or id; the keys and their guardrail live here
-MODELS = ["qwen/qwen3.5-9b", "anthropic/claude-haiku-5.5"]
+MODELS = [
+    "qwen/qwen3.5-9b",               # default: same model as the local path
+    "anthropic/claude-haiku-5.5",    # compare with a Claude model
+    "google/gemma-4-26b-a4b-it",     # the strongest of the local models
+    "mistralai/ministral-3b-2512",   # the weak local model: watch tool calls fail
+    "deepseek/deepseek-v4.1-flash",  # a strong open-weights model, same Messages API
+]
 EVENT = "Agentic AI Meetup #002"  # card heading: "<EVENT> · workshop key"
 ROOT = Path(__file__).resolve().parent.parent
 OUT = Path(__file__).resolve().parent / "out"

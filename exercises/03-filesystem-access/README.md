@@ -2,7 +2,7 @@
 
 Goal: give the agent dedicated file tools instead of making it do everything through `cat` and `sed`, and keep them inside the working folder.
 
-Starter: [`starter.py`](starter.py), which is `j5_01` with `TODO 1`–`TODO 4`. Solution: [`agent/j5_02_tools.py`](../../agent/j5_02_tools.py).
+Starter: [`starter.py`](starter.py), which is `j5_01` with `TODO 1`–`TODO 4`. Solution: [`agent/maxi/j5_02_tools.py`](../../agent/maxi/j5_02_tools.py).
 
 ```bash
 uv run --project agent python exercises/03-filesystem-access/starter.py

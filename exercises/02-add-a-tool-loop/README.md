@@ -8,7 +8,7 @@ messages ──▶ model ──▶ stop_reason == "tool_use"? ──no──▶ 
                 └── tool_result ◀── run the command
 ```
 
-Starter: [`starter.py`](starter.py), which is `j5_00` with `TODO 1`–`TODO 4`. Solution: [`agent/j5_01_bash.py`](../../agent/j5_01_bash.py).
+Starter: [`starter.py`](starter.py), which is `j5_00` with `TODO 1`–`TODO 4`. Solution: [`agent/maxi/j5_01_bash.py`](../../agent/maxi/j5_01_bash.py).
 
 ```bash
 uv run --project agent python exercises/02-add-a-tool-loop/starter.py

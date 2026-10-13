@@ -4,7 +4,7 @@ Goal: know exactly what an LLM call contains and what it costs. No coding yet.
 
 ## Part A: J5's traffic
 
-Run `agent/j5_00_vanilla.py` with the proxy open, and have a short conversation of three or four turns.
+Run `agent/maxi/j5_00_vanilla.py` with the proxy open, and have a short conversation of three or four turns.
 
 1. **Open one `POST /v1/messages` request.** Find `model`, `system`, `messages` and `max_tokens`. What is in `tools`?
 2. **Open the response.** Find `content`, `stop_reason` and `usage`. Which fields tell you the cost?

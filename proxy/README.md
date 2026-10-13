@@ -28,6 +28,7 @@ uv run mitmweb --mode reverse:https://api.anthropic.com -p 8080 \
 Then:
 
 - Point the agent at the proxy: `ANTHROPIC_BASE_URL=http://127.0.0.1:8080` (the default in `.env.example`; add `/api` for OpenRouter).
+  - Claude Code doesn't read `.env`, so set it inline: `ANTHROPIC_BASE_URL=http://127.0.0.1:8080 DISABLE_TELEMETRY=1 DISABLE_ERROR_REPORTING=1 claude` (more in [docs/claude-code.md](../docs/claude-code.md)).
 - Open the **call viewer** at <http://127.0.0.1:8082>: every model call as readable blocks, live.
 - The full mitmweb UI is still at <http://127.0.0.1:8081>, for headers and everything else.
 

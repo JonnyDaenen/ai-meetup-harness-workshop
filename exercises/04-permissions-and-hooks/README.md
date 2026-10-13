@@ -2,10 +2,10 @@
 
 Goal: replace "y/n before every call, plus a substring blocklist" with something you'd actually trust.
 
-Start from a copy of `agent/j5_02_tools.py`:
+Start from a copy of `agent/maxi/j5_02_tools.py`:
 
 ```bash
-cp agent/j5_02_tools.py exercises/04-permissions-and-hooks/my_agent.py
+cp agent/maxi/j5_02_tools.py exercises/04-permissions-and-hooks/my_agent.py
 uv run --project agent python exercises/04-permissions-and-hooks/my_agent.py
 ```
 
